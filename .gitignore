@@ -79,3 +79,5 @@ GTAGS
 *.orig
 *~
 \#*#
+*.config.old
+
