@@ -482,7 +482,8 @@ void *__kmalloc_node(size_t size, gfp_t gfp, int node)
 	int align = max(ARCH_KMALLOC_MINALIGN, ARCH_SLAB_MINALIGN);
 	void *ret;
 
-	lockdep_trace_alloc(gfp);
+        gfp &= gfp_allowed_mask
+        lockdep_trace_alloc(gfp);
 
 	if (size < PAGE_SIZE - align) {
 		if (!size)
@@ -607,6 +608,8 @@ EXPORT_SYMBOL(kmem_cache_destroy);
 void *kmem_cache_alloc_node(struct kmem_cache *c, gfp_t flags, int node)
 {
 	void *b;
+        flags &= gfp_allowed_mask;
+	lockdep_trace_alloc(flags);
 
 	if (c->size < PAGE_SIZE) {
 		b = slob_alloc(c->size, flags, c->align, node);
