@@ -85,6 +85,41 @@ static void set_cpu_work(struct work_struct *work)
 }
 #endif
 
+static void msm_cpu_early_suspend(struct early_suspend *h)
+{
+	int cpu = 0;
+
+	for_each_possible_cpu(cpu) {
+		mutex_lock(&per_cpu(cpufreq_suspend, cpu).suspend_mutex);
+
+		/* disable 2nd core as well since screen is off */
+		if (cpu == 0 && num_online_cpus() > 1)
+			cpu_down(1);
+		mutex_unlock(&per_cpu(cpufreq_suspend, cpu).suspend_mutex);
+	}
+}
+
+static void msm_cpu_late_resume(struct early_suspend *h)
+{
+	int cpu = 0;
+
+	for_each_possible_cpu(cpu) {
+
+		mutex_lock(&per_cpu(cpufreq_suspend, cpu).suspend_mutex);
+
+		/* re-enable 2nd core */
+		if (num_online_cpus() < 2 && cpu == 0)
+			cpu_up(1);
+		mutex_unlock(&per_cpu(cpufreq_suspend, cpu).suspend_mutex);
+	}
+}
+
+static struct early_suspend msm_cpu_early_suspend_handler = {
+	.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN,
+	.suspend = msm_cpu_early_suspend,
+	.resume = msm_cpu_late_resume,
+};
+
 static int msm_cpufreq_target(struct cpufreq_policy *policy,
 				unsigned int target_freq,
 				unsigned int relation)
@@ -318,6 +353,9 @@ static int __init msm_cpufreq_register(void)
 #endif
 
 	register_pm_notifier(&msm_cpufreq_pm_notifier);
+
+	register_early_suspend(&msm_cpu_early_suspend_handler);
+
 	return cpufreq_register_driver(&msm_cpufreq_driver);
 }
 
