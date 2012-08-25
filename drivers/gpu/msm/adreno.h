@@ -74,6 +74,7 @@ struct adreno_device {
 	unsigned int wait_timeout;
 	unsigned int istore_size;
 	unsigned int pix_shader_start;
+	unsigned int ib_check_level;
 };
 
 struct adreno_gpudev {
@@ -99,7 +100,7 @@ void adreno_regread(struct kgsl_device *device, unsigned int offsetwords,
 void adreno_regwrite(struct kgsl_device *device, unsigned int offsetwords,
 				unsigned int value);
 
-const struct kgsl_memdesc *adreno_find_region(struct kgsl_device *device,
+struct kgsl_memdesc *adreno_find_region(struct kgsl_device *device,
 						unsigned int pt_base,
 						unsigned int gpuaddr,
 						unsigned int size);
