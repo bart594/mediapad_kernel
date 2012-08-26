@@ -956,7 +956,7 @@ int mdp4_overlay_format2pipe(struct mdp4_overlay_pipe *pipe)
 		} else if (pipe->src_format == MDP_Y_CBCR_H2V1) {
 			pipe->element1 = C1_B_Cb;       /* B */
                         pipe->element0 = C2_R_Cr;       /* R */
-			pipe->chroma_sample = M         DP4_CHROMA_H2V1;
+			pipe->chroma_sample = MDP4_CHROMA_H2V1;
 		} else if (pipe->src_format == MDP_Y_CBCR_H1V1) {
 			pipe->element1 = C1_B_Cb;       /* B */
                         pipe->element0 = C2_R_Cr;       /* R */
@@ -2337,6 +2337,15 @@ int mdp4_overlay_set(struct fb_info *info, struct mdp_overlay *req)
 	if (ctrl->panel_mode & MDP4_PANEL_DTV &&
 	    pipe->mixer_num == MDP4_MIXER1) {
 		u32 use_blt = mdp4_overlay_blt_enable(req, mfd, perf_level);
+
+		if (hdmi_prim_display) {
+			if (!mdp4_overlay_is_rgb_type(req->src.format) &&
+				pipe->pipe_type == OVERLAY_TYPE_VIDEO &&
+				(req->src_rect.h > req->dst_rect.h ||
+				req->src_rect.w > req->dst_rect.w))
+				use_blt = 1;
+		}
+
 		mdp4_overlay_dtv_set(mfd, pipe);
 		mfd->use_ov1_blt &= ~(1 << (pipe->pipe_ndx-1));
 		mfd->use_ov1_blt |= (use_blt << (pipe->pipe_ndx-1));
