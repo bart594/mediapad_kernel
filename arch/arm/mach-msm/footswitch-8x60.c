@@ -376,6 +376,7 @@ static int gfx2d_footswitch_enable(struct regulator_dev *rdev)
 	return 0;
 
 err:
+	clk_set_flags(fs->core_clk, CLKFLAG_RETAIN);
 	restore_clocks(fs);
 	return rc;
 }
@@ -435,6 +436,9 @@ static int gfx2d_footswitch_disable(struct regulator_dev *rdev)
 
 	/* Re-enable core clock. */
 	clk_enable(fs->core_clk);
+
+	/* Prevent core memory from collapsing when its clock is gated. */
+	clk_set_flags(fs->core_clk, CLKFLAG_RETAIN);
 
 	/* Return clocks to their state before this function. */
 	restore_clocks(fs);
