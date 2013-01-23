@@ -111,29 +111,26 @@ static void display_panel_power(int on)
       #endif
 
       if(on) {
-          /* LCD VCCS set to 3.3V */
+          /* LCD VCCS set to 3.0V */
           _GET_REGULATOR(display_reg, "8901_l2");
           if (!display_reg)
             return;
           rc = regulator_set_voltage(display_reg,
-          	3300000, 3300000);
+          	3000000, 3000000);
           if (rc)
           	goto out_display_reg;
           rc = regulator_enable(display_reg);
           if (rc)
           	goto out_display_reg;
 
-          /* LVDS VCCS set to 3.3V */
+          /* LVDS VCCS set to 3.30 */
           _GET_REGULATOR(lvds_reg, "8901_l3");
           if (!lvds_reg)
           	return;
-#if 0
+
           rc = regulator_set_voltage(lvds_reg,
           	3000000, 3000000);
-#else
-          rc = regulator_set_voltage(lvds_reg,
-          	3300000, 3300000);
-#endif
+
           if (rc)
           	goto out_lvds_reg;
           rc = regulator_enable(lvds_reg);
