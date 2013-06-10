@@ -359,11 +359,15 @@ static int lcdc_chimei_panel_on(struct platform_device *pdev)
     
 	int ret = 0;
     
-
+        struct msm_fb_data_type *mfd = platform_get_drvdata(pdev);
 #if 1
       printk(KERN_INFO "lcdc_chimei_panel_on---------------begin");
 
-    
+        if (!mfd->cont_splash_done) {
+		mfd->cont_splash_done = 1;
+		return ret;
+	}
+
 	if (1 == display_panel_operate) 
 	{       
 		return ret;
@@ -737,7 +741,7 @@ static int __init lcdc_chimei_lvds_panel_init(void)
 	pinfo->wait_cycle = 0;
 	pinfo->bpp = 24;
 	pinfo->fb_num = 2;
-    pinfo->clk_rate = 69300000;//69300000; //71110000;  //48000000;
+        pinfo->clk_rate = 69300000;//69300000; //71110000;  //48000000;
 	pinfo->bl_max = PWM_LEVEL;
 	pinfo->bl_min = 1;
 
@@ -745,17 +749,23 @@ static int __init lcdc_chimei_lvds_panel_init(void)
 	 * this panel is operated by de,
 	 * vsycn and hsync are ignored
 	 */
-    pinfo->lcdc.h_back_porch  = 96;
-    pinfo->lcdc.h_front_porch = 0;
-    pinfo->lcdc.h_pulse_width = 64;
-    pinfo->lcdc.v_back_porch  = 7;
-    pinfo->lcdc.v_front_porch = 0;
-    pinfo->lcdc.v_pulse_width = 16;
-    pinfo->lcdc.border_clr = 0;
-	pinfo->lcdc.underflow_clr = 0x00;//0xff;
-	pinfo->lcdc.hsync_skew = 0;
-	ret = platform_device_register(&this_device);
-	if (ret)
+         pinfo->lcdc.h_back_porch  = 96;
+         pinfo->lcdc.h_front_porch = 0;
+         pinfo->lcdc.h_pulse_width = 64;
+         pinfo->lcdc.v_back_porch  = 7;
+         pinfo->lcdc.v_front_porch = 0;
+         pinfo->lcdc.v_pulse_width = 16;
+         pinfo->lcdc.border_clr = 0;
+	 pinfo->lcdc.underflow_clr = 0x00;//0xff;
+	 pinfo->lcdc.hsync_skew = 0;
+	 ret = platform_device_register(&this_device);
+
+         /* Set border color, padding only for reducing active display region */
+	 pinfo->lcdc.border_clr = 0x0;
+	 pinfo->lcdc.xres_pad = 0;
+	 pinfo->lcdc.yres_pad = 0;
+
+        if (ret)
 		platform_driver_unregister(&this_driver);
       printk(KERN_INFO "lcdc_chimei_lvds_panel_init---------------end");
    

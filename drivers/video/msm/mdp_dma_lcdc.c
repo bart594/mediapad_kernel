@@ -278,6 +278,12 @@ int mdp_lcdc_on(struct platform_device *pdev)
 	ctrl_polarity =
 	    (data_en_polarity << 2) | (vsync_polarity << 1) | (hsync_polarity);
 
+	if (!(mfd->cont_splash_done)) {
+		mdp_pipe_ctrl(MDP_CMD_BLOCK,
+			MDP_BLOCK_POWER_OFF, FALSE);
+		MDP_OUTP(MDP_BASE + timer_base, 0);
+	}
+
 	MDP_OUTP(MDP_BASE + timer_base + 0x4, hsync_ctrl);
 	MDP_OUTP(MDP_BASE + timer_base + 0x8, vsync_period);
 	MDP_OUTP(MDP_BASE + timer_base + 0xc, vsync_pulse_width * hsync_period);
@@ -367,6 +373,7 @@ int mdp_lcdc_off(struct platform_device *pdev)
 	return ret;
 }
 
+/* merge qcom patch to solve blue screen when power on */
 void mdp_dma_lcdc_vsync_ctrl(int enable)
 {
 	unsigned long flag;
@@ -375,8 +382,7 @@ void mdp_dma_lcdc_vsync_ctrl(int enable)
 		return;
 
 	spin_lock_irqsave(&mdp_spin_lock, flag);
-	if (!enable)
-		INIT_COMPLETION(vsync_cntrl.vsync_wait);
+	/* delete two lines */
 
 	vsync_cntrl.vsync_irq_enabled = enable;
 	if (!enable)
@@ -384,15 +390,18 @@ void mdp_dma_lcdc_vsync_ctrl(int enable)
 	disabled_clocks = vsync_cntrl.disabled_clocks;
 	spin_unlock_irqrestore(&mdp_spin_lock, flag);
 
-	if (enable && disabled_clocks) {
+	if (enable && disabled_clocks) 
 		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
-		spin_lock_irqsave(&mdp_spin_lock, flag);
+		
+	spin_lock_irqsave(&mdp_spin_lock, flag);
+	if (enable && vsync_cntrl.disabled_clocks) {
 		outp32(MDP_INTR_CLEAR, LCDC_FRAME_START);
 		mdp_intr_mask |= LCDC_FRAME_START;
 		outp32(MDP_INTR_ENABLE, mdp_intr_mask);
 		mdp_enable_irq(MDP_VSYNC_TERM);
-		spin_unlock_irqrestore(&mdp_spin_lock, flag);
+		vsync_cntrl.disabled_clocks = 0;
 	}
+	spin_unlock_irqrestore(&mdp_spin_lock, flag);
 
 	if (vsync_cntrl.vsync_irq_enabled &&
 		atomic_read(&vsync_cntrl.suspend) == 0)

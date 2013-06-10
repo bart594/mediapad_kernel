@@ -533,7 +533,7 @@ void mdp4_mddi_dma_busy_wait(struct msm_fb_data_type *mfd)
 	if (need_wait) {
 		/* wait until DMA finishes the current job */
 		pr_debug("%s: PENDING, pid=%d\n", __func__, current->pid);
-		wait_for_completion(&mfd->dma->comp);
+		wait_for_completion_interruptible_timeout(&mfd->dma->comp, 1 * HZ);
 	}
 	pr_debug("%s: DONE, pid=%d\n", __func__, current->pid);
 }
@@ -669,7 +669,7 @@ void mdp4_mddi_dma_s_kickoff(struct msm_fb_data_type *mfd,
 	mdp4_stat.kickoff_dmas++;
 
 	/* wait until DMA finishes the current job */
-	wait_for_completion(&mfd->dma->comp);
+	wait_for_completion_interruptible_timeout(&mfd->dma->comp, 2 * HZ);
 	mdp_disable_irq(MDP_DMA_S_TERM);
 }
 
