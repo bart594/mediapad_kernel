@@ -1798,8 +1798,10 @@ static int msm_fb_pan_idle(struct msm_fb_data_type *mfd)
 	}
 	return ret;
 }
-
-struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
+static int msm_fb_pan_display_ex(struct fb_var_screeninfo *var,
+			      struct fb_info *info, u32 wait_for_finish)
+{
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
 	struct msm_fb_backup_type *fb_backup;
 	int ret = 0;
 	/*
@@ -1844,8 +1846,8 @@ struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
 	return ret;
 }
 
-static int msm_fb_pan_display_ex(struct fb_var_screeninfo *var,
-			      struct fb_info *info, u32 wait_for_finish)
+static int msm_fb_pan_display(struct fb_var_screeninfo *var,
+			      struct fb_info *info)
 {
 	int ret;
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
