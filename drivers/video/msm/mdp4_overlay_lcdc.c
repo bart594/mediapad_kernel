@@ -322,6 +322,14 @@ void mdp4_lcdc_wait4vsync(int cndx, long long *vtime)
 	vctrl->wait_vsync_cnt++;
 	spin_unlock_irqrestore(&vctrl->spin_lock, flags);
 
+        ret = wait_for_completion_interruptible(&vctrl->vsync_comp);
+	if (ret)
+		return ret;
+
+	spin_lock_irqsave(&vctrl->spin_lock, flags);
+	vsync_tick = ktime_to_ns(vctrl->vsync_time);
+	spin_unlock_irqrestore(&vctrl->spin_lock, flags);
+
 	if (!wait_for_completion_timeout(&vctrl->vsync_comp, msecs_to_jiffies(100)))
 		pr_err("%s %d  TIMEOUT_\n", __func__, __LINE__);
 
@@ -372,6 +380,7 @@ static ssize_t vsync_show_event(struct device *dev,
 	struct vsycn_ctrl *vctrl;
 	ssize_t ret = 0;
 	unsigned long flags;
+	u64 vsync_tick;
 
 	cndx = 0;
 	vctrl = &vsync_ctrl_db[0];
@@ -808,9 +817,9 @@ void mdp4_primary_vsync_lcdc(void)
 
 	cndx = 0;
 	vctrl = &vsync_ctrl_db[cndx];
-	vctrl->vsync_time = ktime_get();
 
 	spin_lock(&vctrl->spin_lock);
+        vctrl->vsync_time = ktime_get();
 	if (vctrl->wait_vsync_cnt) {
 		complete_all(&vctrl->vsync_comp);
 		vctrl->wait_vsync_cnt = 0;
