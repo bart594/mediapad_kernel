@@ -44,6 +44,7 @@ extern spinlock_t mdp_spin_lock;
 extern int mdp_rev;
 extern struct mdp_csc_cfg mdp_csc_convert[4];
 
+extern struct mdp_csc_cfg_data csc_cfg_matrix[];
 extern struct workqueue_struct *mdp_hist_wq;
 
 extern int mdp_lut_i;
