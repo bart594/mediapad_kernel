@@ -191,7 +191,7 @@ struct msm_fb_data_type {
 	bool writeback_active_cnt;
 	int cont_splash_done;
         u32 acq_fen_cnt;
-	nt acq_fen_fd[MDP_MAX_FENCE_FD];
+	struct sync_fence *acq_fen[MDP_MAX_FENCE_FD];
 	int cur_rel_fen_fd;
 	struct sync_pt *cur_rel_sync_pt;
 	struct sync_fence *cur_rel_fence;
@@ -199,7 +199,9 @@ struct msm_fb_data_type {
 	struct sw_sync_timeline *timeline;
 	int timeline_value;
         void *cpu_pm_hdl;
-      	struct mutex sync_mutex;
+        u32 last_acq_fen_cnt;
+	struct sync_fence *last_acq_fen[MDP_MAX_FENCE_FD];
+	struct mutex sync_mutex;
 	struct completion commit_comp;
 	u32 is_committing;
 	struct work_struct commit_work;
