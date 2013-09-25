@@ -1989,19 +1989,13 @@ static void msm_fb_commit_wq_handler(struct work_struct *work)
 
 	mfd = container_of(work, struct msm_fb_data_type, commit_work);
 	fb_backup = (struct msm_fb_backup_type *)mfd->msm_fb_backup;
+	var = &fb_backup->var;
 	info = &fb_backup->info;
-	if (fb_backup->disp_commit.flags &
-		MDP_DISPLAY_COMMIT_OVERLAY) {
-			mdp4_overlay_commit(info);
-	} else {
-		var = &fb_backup->disp_commit.var;
-		msm_fb_pan_display_sub(var, info);
-	}
+	msm_fb_pan_display_sub(var, info);
 	mutex_lock(&mfd->sync_mutex);
 	mfd->is_committing = 0;
 	complete_all(&mfd->commit_comp);
 	mutex_unlock(&mfd->sync_mutex);
-
 }
 
 static int msm_fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
@@ -3957,7 +3951,7 @@ static int msm_fb_ioctl(struct fb_info *info, unsigned int cmd,
 
                 mutex_unlock(&mfd->entry_mutex);
 		ret = mfd->do_histogram(info, &hist);
-                goto exit;
+                goto msm_fb_ioctl_exit;
 		break;
 
 	case MSMFB_HISTOGRAM_START:
@@ -4004,7 +3998,7 @@ static int msm_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	case MSMFB_NOTIFY_UPDATE:
                 mutex_unlock(&mfd->entry_mutex);
 		ret = msmfb_notify_update(info, argp);
-                goto exit;
+                goto msm_fb_ioctl_exit;
 		break;
 
 	case MSMFB_SET_PAGE_PROTECTION:
