@@ -32,10 +32,6 @@
 #include "mdp.h"
 #include "msm_fb.h"
 #include "mdp4.h"
-#include <linux/workqueue.h>
-static struct workqueue_struct *gUderrunWorkqueue;
-static struct work_struct gUderrunWork;
-
 
 struct mdp4_statistic mdp4_stat;
 
@@ -114,21 +110,22 @@ struct mdp_csc_cfg_data csc_cfg_matrix[CSC_MAX_BLOCKS] = {
 	.csc_data = {
 			(0),
 			{
-				0x0200, 0x0000, 0x0000,
-				0x0000, 0x0200, 0x0000,
-				0x0000, 0x0000, 0x0200,
+				0x0083, 0x0102, 0x0032,
+				0x1fb5, 0x1f6c, 0x00e1,
+				0x00e1, 0x1f45, 0x1fdc,
 			},
 			{
 				0x0, 0x0, 0x0,
 			},
 			{
-				0, 0, 0,
+				0x0010, 0x0080, 0x0080,
 			},
 			{
 				0, 0xff, 0, 0xff, 0, 0xff,
 			},
 			{
-				0, 0xff, 0, 0xff, 0, 0xff,
+				0x0010, 0x00eb, 0x0010,
+				0x00f0, 0x0010, 0x00f0,
 			},
 		},
 	},
@@ -137,21 +134,22 @@ struct mdp_csc_cfg_data csc_cfg_matrix[CSC_MAX_BLOCKS] = {
 	.csc_data = {
 			(0),
 			{
-				0x0200, 0x0000, 0x0000,
-				0x0000, 0x0200, 0x0000,
-				0x0000, 0x0000, 0x0200,
+				0x0083, 0x0102, 0x0032,
+				0x1fb5, 0x1f6c, 0x00e1,
+				0x00e1, 0x1f45, 0x1fdc,
 			},
 			{
 				0x0, 0x0, 0x0,
 			},
 			{
-				0, 0, 0,
+				0x0010, 0x0080, 0x0080,
 			},
 			{
 				0, 0xff, 0, 0xff, 0, 0xff,
 			},
 			{
-				0, 0xff, 0, 0xff, 0, 0xff,
+				0x0010, 0x00eb, 0x0010,
+				0x00f0, 0x0010, 0x00f0,
 			},
 		},
 	},
@@ -179,7 +177,6 @@ struct mdp_csc_cfg_data csc_cfg_matrix[CSC_MAX_BLOCKS] = {
 		},
 	},
 };
-
 
 unsigned is_mdp4_hw_reset(void)
 {
@@ -387,8 +384,6 @@ void mdp4_fetch_cfg(uint32 core_clk)
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 }
 
-int Uderrunflag = 1;
-
 void mdp4_hw_init(void)
 {
 	ulong bits;
@@ -447,8 +442,8 @@ void mdp4_hw_init(void)
 
 	/* max read pending cmd config */
 	outpdw(MDP_BASE + 0x004c, 0x02222);	/* 3 pending requests */
-        outpdw(MDP_BASE + 0x0400, 0x7FF);
-        outpdw(MDP_BASE + 0x0404, 0x30050);
+	outpdw(MDP_BASE + 0x0400, 0x7FF);
+	outpdw(MDP_BASE + 0x0404, 0x30050);
 
 #ifndef CONFIG_FB_MSM_OVERLAY
 	/* both REFRESH_MODE and DIRECT_OUT are ignored at BLT mode */
@@ -459,8 +454,6 @@ void mdp4_hw_init(void)
 	clk_rate = mdp_get_core_clk();
 	mdp4_fetch_cfg(clk_rate);
 
-	mdp4_overlay_cfg_init();
-
 	/* Mark hardware as initialized. Only revisions > v2.1 have a register
 	 * for tracking core reset status. */
 	if (mdp_hw_revision > MDP4_REVISION_V2_1)
@@ -468,12 +461,7 @@ void mdp4_hw_init(void)
 
 	/* MDP cmd block disable */
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
-	gUderrunWorkqueue = create_singlethread_workqueue("uderrun_wq");
-	if (!gUderrunWorkqueue)    
-	{
-		printk(KERN_INFO "create hdmi_wq error\n");
-		return;
-	}		
+	
 }
 
 
@@ -541,10 +529,6 @@ irqreturn_t mdp4_isr(int irq, void *ptr)
 				continue;
 			mgmt->mdp_is_hist_valid = FALSE;
 		}
-    	if(1 == Uderrunflag) {
-  	        Uderrunflag = 0;
-	 	    queue_work(gUderrunWorkqueue, &gUderrunWork);
-	    }
 	}
 
 	if (isr & INTR_EXTERNAL_INTF_UDERRUN) {
@@ -2154,7 +2138,7 @@ static uint32_t mdp4_csc_block2base(uint32_t block)
 		base = 0x1A000;
 		break;
 	case MDP_BLOCK_OVERLAY_2:
-		base = (mdp_rev >= MDP_REV_44) ? 0x8A000 : 0x0;
+		base = (mdp_rev >= MDP_REV_43) ? 0x8A000 : 0x0;
 		break;
 	case MDP_BLOCK_VG_1:
 		base = 0x24000;
@@ -2636,7 +2620,7 @@ static uint32_t mdp_pp_block2argc(uint32_t block)
 		break;
 
 	case MDP_BLOCK_OVERLAY_2:
-		valid = (mdp_rev >= MDP_REV_44) ? 1 : 0;
+		valid = (mdp_rev >= MDP_REV_43) ? 1 : 0;
 		break;
 
 	default:
