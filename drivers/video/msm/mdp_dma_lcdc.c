@@ -356,11 +356,7 @@ int mdp_lcdc_off(struct platform_device *pdev)
 #endif
 	mdp_histogram_ctrl_all(FALSE);
 
-/*still need to send 2 frame data after sending sleep in command*/
-
-	ret = panel_next_off(pdev);
-
-    down(&mfd->dma->mutex);
+	down(&mfd->dma->mutex);
 	/* MDP cmd block enable */
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
 	MDP_OUTP(MDP_BASE + timer_base, 0);
@@ -368,7 +364,7 @@ int mdp_lcdc_off(struct platform_device *pdev)
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 	mdp_pipe_ctrl(block, MDP_BLOCK_POWER_OFF, FALSE);
 
-	//ret = panel_next_off(pdev);
+	ret = panel_next_off(pdev);
 	up(&mfd->dma->mutex);
 	atomic_set(&vsync_cntrl.suspend, 1);
 	atomic_set(&vsync_cntrl.vsync_resume, 0);

@@ -231,11 +231,11 @@ struct external_common_state_type {
 	struct hdmi_disp_mode_list_type disp_mode_list;
 	uint16 video_latency, audio_latency;
 	uint16 physical_address;
-	uint32 preferred_video_format;
-	uint8 pt_scan_info;
-	uint8 it_scan_info;
-	uint8 ce_scan_info;
-	uint8 spd_vendor_name[8];
+        uint32 preferred_video_format;
+        uint8 pt_scan_info;
+        uint8 it_scan_info;
+        uint8 ce_scan_info;
+        uint8 spd_vendor_name[8];
 	uint8 spd_product_description[16];
 	boolean present_3d;
 	boolean present_hdcp;

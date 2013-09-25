@@ -71,11 +71,10 @@
 
 #define MSMFB_OVERLAY_VSYNC_CTRL  _IOW(MSMFB_IOCTL_MAGIC, 160, unsigned int)
 #define MSMFB_VSYNC_CTRL  _IOW(MSMFB_IOCTL_MAGIC, 161, unsigned int)
-#define MSMFB_BUFFER_SYNC  _IOW(MSMFB_IOCTL_MAGIC, 162, struct mdp_buf_sync)
-#define MSMFB_METADATA_SET  _IOW(MSMFB_IOCTL_MAGIC, 163, struct msmfb_metadata)
+#define MSMFB_BUFFER_SYNC  _IOW(MSMFB_IOCTL_MAGIC, 165, struct mdp_buf_sync)
+#define MSMFB_METADATA_SET  _IOW(MSMFB_IOCTL_MAGIC, 166, struct msmfb_metadata)
 #define MSMFB_DISPLAY_COMMIT      _IOW(MSMFB_IOCTL_MAGIC, 164, \
 						struct mdp_display_commit)
-#define MSMFB_METADATA_GET  _IOW(MSMFB_IOCTL_MAGIC, 166, struct msmfb_metadata)
 
 #define FB_TYPE_3D_PANEL 0x10101010
 #define MDP_IMGTYPE2_START 0x10000
@@ -90,7 +89,6 @@ enum {
 	MDP_RGB_565,      /* RGB 565 planer */
 	MDP_XRGB_8888,    /* RGB 888 padded */
 	MDP_Y_CBCR_H2V2,  /* Y and CbCr, pseudo planer w/ Cb is in MSB */
-	MDP_Y_CBCR_H2V2_ADRENO,
 	MDP_ARGB_8888,    /* ARGB 888 */
 	MDP_RGB_888,      /* RGB 888 planer */
 	MDP_Y_CRCB_H2V2,  /* Y and CrCb, pseudo planer w/ Cr is in MSB */
@@ -258,7 +256,6 @@ struct msmfb_overlay_data {
 	uint32_t version_key;
 	struct msmfb_data plane1_data;
 	struct msmfb_data plane2_data;
-	struct msmfb_data dst_data;
 };
 
 struct msmfb_img {
@@ -273,10 +270,8 @@ struct msmfb_writeback_data {
 	struct msmfb_img img;
 };
 
-#define MDP_PP_OPS_ENABLE 0x1
 #define MDP_PP_OPS_READ 0x2
 #define MDP_PP_OPS_WRITE 0x4
-#define MDP_PP_OPS_DISABLE 0x8
 
 struct mdp_qseed_cfg {
 	uint32_t table_num;
@@ -290,19 +285,8 @@ struct mdp_qseed_cfg_data {
 	struct mdp_qseed_cfg qseed_data;
 };
 
-struct mdp_sharp_cfg {
-	uint32_t flags;
-	uint32_t strength;
-	uint32_t edge_thr;
-	uint32_t smooth_thr;
-	uint32_t noise_thr;
-};
-
 #define MDP_OVERLAY_PP_CSC_CFG      0x1
 #define MDP_OVERLAY_PP_QSEED_CFG    0x2
-#define MDP_OVERLAY_PP_PA_CFG    0x4
-#define MDP_OVERLAY_PP_IGC_CFG    0x8
-#define MDP_OVERLAY_PP_SHARP_CFG    0x10
 
 #define MDP_CSC_FLAG_ENABLE	0x1
 #define MDP_CSC_FLAG_YUV_IN	0x2
@@ -323,21 +307,10 @@ struct mdp_csc_cfg_data {
 	struct mdp_csc_cfg csc_data;
 };
 
-struct mdp_pa_cfg {
-	uint32_t flags;
-	uint32_t hue_adj;
-	uint32_t sat_adj;
-	uint32_t val_adj;
-	uint32_t cont_adj;
-};
-
 struct mdp_overlay_pp_params {
 	uint32_t config_ops;
 	struct mdp_csc_cfg csc_cfg;
 	struct mdp_qseed_cfg qseed_cfg[2];
-	struct mdp_pa_cfg pa_cfg;
-	//struct mdp_igc_lut_data igc_cfg;
-	struct mdp_sharp_cfg sharp_cfg;
 };
 
 struct mdp_overlay {
@@ -380,14 +353,11 @@ struct mdp_histogram {
 
 /*
 
-	mdp_block_type defines the identifiers for pipes in MDP 4.3 and up
+	mdp_block_type defines the identifiers for each of pipes in MDP 4.3
 
 	MDP_BLOCK_RESERVED is provided for backward compatibility and is
 	deprecated. It corresponds to DMA_P. So MDP_BLOCK_DMA_P should be used
 	instead.
-
-	MDP_LOGICAL_BLOCK_DISP_0 identifies the display pipe which fb0 uses,
-	same for others.
 
 */
 
@@ -403,16 +373,13 @@ enum {
 	MDP_BLOCK_DMA_S,
 	MDP_BLOCK_DMA_E,
 	MDP_BLOCK_OVERLAY_2,
-	MDP_LOGICAL_BLOCK_DISP_0 = 0x1000,
-	MDP_LOGICAL_BLOCK_DISP_1,
-	MDP_LOGICAL_BLOCK_DISP_2,
 	MDP_BLOCK_MAX,
 };
 
 /*
- * mdp_histogram_start_req is used to provide the parameters for
- *histogram start request
- */
+mdp_histogram_start_req is used to provide the parameters for
+histogram start request
+*/
 
 struct mdp_histogram_start_req {
 	uint32_t block;
@@ -423,8 +390,10 @@ struct mdp_histogram_start_req {
 
 
 /*
- * mdp_histogram_data is used to return the histogram data, once
- * the histogram is done/stopped/cance
+
+   mdp_histogram_data is used to return the histogram data, once
+   the histogram is done/stopped/cance
+
  */
 
 
@@ -496,6 +465,14 @@ struct mdp_lut_cfg_data {
 	} data;
 };
 
+struct mdp_qseed_cfg_data {
+	uint32_t block;
+	uint32_t table_num;
+	uint32_t ops;
+	uint32_t len;
+	uint32_t *data;
+};
+
 enum {
 	mdp_op_pcc_cfg,
 	mdp_op_csc_cfg,
@@ -521,7 +498,6 @@ enum {
 };
 
 #define MDP_MAX_FENCE_FD 10
-#define MDP_BUF_SYNC_FLAG_WAIT	1
 
 struct mdp_buf_sync {
  uint32_t flags;

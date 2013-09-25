@@ -496,16 +496,6 @@ static ssize_t hdmi_common_rda_hdcp(struct device *dev,
 	return ret;
 }
 
-static ssize_t hdmi_common_dvi_enable(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	ssize_t ret = snprintf(buf, PAGE_SIZE, "%d\n",
-		!external_common_state->hdmi_sink);
-	DEV_DBG("%s: '%d'\n", __func__,
-		!external_common_state->hdmi_sink);
-	return ret;
-}
-
 static ssize_t hdmi_common_rda_hpd(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -946,7 +936,6 @@ static struct attribute *external_common_fs_attrs[] = {
 	&dev_attr_edid_3d_modes.attr,
 	&dev_attr_3d_present.attr,
 	&dev_attr_hdcp_present.attr,
-	&dev_attr_isdvi.attr,
 #endif
 #ifdef CONFIG_FB_MSM_HDMI_3D
 	&dev_attr_format_3d.attr,
@@ -1930,9 +1919,6 @@ int hdmi_common_read_edid(void)
 	external_common_state->it_scan_info = 0;
 	external_common_state->ce_scan_info = 0;
 	external_common_state->preferred_video_format = 0;
-
-	/* Default 2ch-audio */
-	external_common_state->audio_speaker_data = 2;
 	external_common_state->present_3d = 0;
 	memset(&external_common_state->disp_mode_list, 0,
 		sizeof(external_common_state->disp_mode_list));
@@ -2059,16 +2045,13 @@ bool hdmi_common_get_video_format_from_drv_data(struct msm_fb_data_type *mfd)
 	uint32 format;
 	struct fb_var_screeninfo *var = &mfd->fbi->var;
 	bool changed = TRUE;
-	uint32_t userformat = 0;
-	userformat = var->reserved[3] >> 16;
 
-	if ((userformat > 0) && (userformat <= HDMI_VFRMT_MAX)) {
-		format = userformat-1;
+	if (var->reserved[3]) {
+		format = var->reserved[3]-1;
 		DEV_DBG("reserved format is %d\n", format);
 	} else {
-		DEV_DBG("detecting resolution from %dx%d use top 2 bytes of"
-			" var->reserved[3] to specify mode", mfd->var_xres,
-			mfd->var_yres);
+		DEV_DBG("detecting resolution from %dx%d use var->reserved[3]"
+			" to specify mode", mfd->var_xres, mfd->var_yres);
 		switch (mfd->var_xres) {
 		default:
 		case  640:
@@ -2176,7 +2159,7 @@ void hdmi_common_init_panel_info(struct msm_panel_info *pinfo)
 	if (hdmi_prim_display)
 		pinfo->fb_num = 2;
 	else
-		pinfo->fb_num = 2;
+		pinfo->fb_num = 1;
 
 	/* blk */
 	pinfo->lcdc.border_clr = 0;

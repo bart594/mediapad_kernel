@@ -239,7 +239,6 @@ enum {
 
 #define MDP4_MAX_PLANE		4
 #define VSYNC_PERIOD		16
-#define WAIT_FOR_COMPLETION_TIMEOUT	800
 
 #ifdef BLT_RGB565
 #define BLT_BPP 2
@@ -295,8 +294,6 @@ struct mdp4_overlay_pipe {
 	uint32 src_format;
 	uint32 src_width;	/* source img width */
 	uint32 src_height;	/* source img height */
-	uint32 prev_src_width;	/* source img width */
-	uint32 prev_src_height;	/* source img height */
 	uint32 is_3d;
 	uint32 src_width_3d;	/* source img width */
 	uint32 src_height_3d;	/* source img height */
@@ -374,15 +371,14 @@ struct mdp4_overlay_pipe {
 	uint32 blt_dmap_done;
 	uint32 req_clk;
 	uint32 req_bw;
-    uint64 bw_ab_quota;
+        uint64 bw_ab_quota;
 	uint64 bw_ib_quota;
 	uint32 luma_align_size;
-    struct mdp_overlay_pp_params pp_cfg;
+        struct mdp_overlay_pp_params pp_cfg;
 	struct mdp_overlay req_data;
 	struct completion comp;
 	struct completion dmas_comp;
 	struct mdp4_iommu_pipe_info iommu;
-	struct msm_fb_data_type *mfd;
 };
 
 struct mdp4_statistic {
@@ -463,6 +459,7 @@ void mdp4_lcdc_update(struct msm_fb_data_type *mfd);
 void mdp4_intr_clear_set(ulong clear, ulong set);
 void mdp4_dma_p_cfg(void);
 unsigned is_mdp4_hw_reset(void);
+void mdp4_overlay_cfg_init(void);
 void mdp4_hw_init(void);
 void mdp4_isr_read(int);
 void mdp4_clear_lcdc(void);
