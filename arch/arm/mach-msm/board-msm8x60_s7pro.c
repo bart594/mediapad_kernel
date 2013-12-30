@@ -101,7 +101,7 @@
 #include "rpm_resources.h"
 #include "acpuclock.h"
 #include "pm-boot.h"
-
+#include "devices.h"
 #include <linux/ion.h>
 #include <mach/ion.h>
 
@@ -5508,7 +5508,8 @@ static struct platform_device *early_devices[] __initdata = {
 #if (defined(CONFIG_MARIMBA_CORE)) && \
 	(defined(CONFIG_MSM_BT_POWER) || defined(CONFIG_MSM_BT_POWER_MODULE))
 
- 
+extern void bluesleep_setup_uart_port(struct platform_device *uart_dev);
+
 
 /* <define bluesleep GPIO resources> */
 static struct resource bluesleep_resources[] = {
@@ -5680,7 +5681,7 @@ static void __init msm8x60_bt_power_init(void)
         gpio_free(GPIO_BCM4329_BT_RST_N);
         goto exit;
     }
-
+    bluesleep_setup_uart_port(&msm_device_uart_dm1);
     printk(KERN_DEBUG "Bluetooth power switch: initialized\n");
 
 exit:
@@ -6812,9 +6813,9 @@ static struct platform_device *surf_devices[] __initdata = {
 	&msm_device_vidc,
 #if (defined(CONFIG_MARIMBA_CORE)) && \
 	(defined(CONFIG_MSM_BT_POWER) || defined(CONFIG_MSM_BT_POWER_MODULE))
+
 	&msm_bt_power_device,
-	
-    &msm_bluesleep_device,
+	&msm_bluesleep_device,
 
 #endif
 #ifdef CONFIG_SENSORS_MSM_ADC
