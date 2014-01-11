@@ -501,12 +501,17 @@ int
 dhd_prot_init(dhd_pub_t *dhd)
 {
 	int ret = 0;
+	/*porting,WIFI Module,hanshirong 66539,20101108 begin++ */
+	#if 0
 	char buf[128];
-
+	#endif
+	/*porting,WIFI Module,hanshirong 66539,20101108 end-- */
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
 	dhd_os_proto_block(dhd);
 
+	/*porting,WIFI Module,hanshirong 66539,20101108 begin++ */
+	#if 0
 	/* Get the device MAC address */
 	strcpy(buf, "cur_etheraddr");
 	ret = dhdcdc_query_ioctl(dhd, 0, WLC_GET_VAR, buf, sizeof(buf));
@@ -515,7 +520,8 @@ dhd_prot_init(dhd_pub_t *dhd)
 		return ret;
 	}
 	memcpy(dhd->mac.octet, buf, ETHER_ADDR_LEN);
-
+	#endif
+	/*porting,WIFI Module,hanshirong 66539,20101108 end-- */
 	dhd_os_proto_unblock(dhd);
 
 #ifdef EMBEDDED_PLATFORM

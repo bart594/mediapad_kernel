@@ -39,8 +39,11 @@
 #define WL_TRACE(x)
 
 #ifdef CUSTOMER_HW
+#define CUSTOMER_OOB
+extern int brcm_wlan_oob(void);
 extern  void bcm_wlan_power_off(int);
 extern  void bcm_wlan_power_on(int);
+extern int msm8x60_wlan_set_carddetect(int val);
 #endif /* CUSTOMER_HW */
 #ifdef CUSTOMER_HW2
 int wifi_set_carddetect(int on);
@@ -71,8 +74,12 @@ int dhd_customer_oob_irq_map(unsigned long *irq_flags_ptr)
 	int  host_oob_irq = 0;
 
 #ifdef CUSTOMER_HW2
-	host_oob_irq = wifi_get_irq_number(irq_flags_ptr);
-
+	/*porting,WIFI Module,hanshirong 66539,20101108 begin++ */
+	//host_oob_irq = wifi_get_irq_number(irq_flags_ptr);
+	dhd_oob_gpio_num = CUSTOM_OOB_GPIO_NUM;
+	host_oob_irq = MSM_GPIO_TO_INT(dhd_oob_gpio_num);
+#elif defined(CUSTOMER_OOB)
+        host_oob_irq = brcm_wlan_oob();
 #else /* for NOT  CUSTOMER_HW2 */
 #if defined(CUSTOM_OOB_GPIO_NUM)
 	if (dhd_oob_gpio_num < 0) {

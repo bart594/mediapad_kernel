@@ -56,6 +56,7 @@
 #include <dhd_bus.h>
 #include <dhd_proto.h>
 #include <dhd_dbg.h>
+extern int msm8x60_wlan_set_carddetect(int val);
 #include <wl_iw.h>
 #ifdef CONFIG_HAS_WAKELOCK
 #include <linux/wakelock.h>
@@ -340,15 +341,23 @@ typedef struct dhd_info {
 /* Definitions to provide path to the firmware and nvram
  * example nvram_path[MOD_PARAM_PATHLEN]="/projects/wlan/nvram.txt"
  */
-char firmware_path[MOD_PARAM_PATHLEN];
-char nvram_path[MOD_PARAM_PATHLEN];
+char firmware_softap_path[MOD_PARAM_PATHLEN]="";
+char firmware_path[MOD_PARAM_PATHLEN]="";
+char nvram_path[MOD_PARAM_PATHLEN]="";
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 struct semaphore dhd_registration_sem;
 #define DHD_REGISTRATION_TIMEOUT  12000  /* msec : allowed time to finished dhd registration */
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) */
 /* load firmware and/or nvram values from the filesystem */
+
+/*porting,WIFI Module,hanshirong 66539,20101108 begin++ */
+char mac_param[MOD_PARAM_PATHLEN] = {0}; 
+module_param_string(mac_param, mac_param, MOD_PARAM_PATHLEN, 0);
+/*porting,WIFI Module,hanshirong 66539,20101108 end-- */
+
 module_param_string(firmware_path, firmware_path, MOD_PARAM_PATHLEN, 0);
+module_param_string(firmware_softap_path, firmware_softap_path, MOD_PARAM_PATHLEN, 0);
 module_param_string(nvram_path, nvram_path, MOD_PARAM_PATHLEN, 0);
 
 /* Error bits */
@@ -2072,6 +2081,8 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 		goto fail;
 	}
 
+	// set wifi interface name wlan0, we use wlan0, not eth0. 
+	sprintf(net->name, "wlan0");
 	/* Allocate primary dhd_info */
 	if (!(dhd = MALLOC(osh, sizeof(dhd_info_t)))) {
 		DHD_ERROR(("%s: OOM - alloc dhd_info\n", __FUNCTION__));
@@ -2219,6 +2230,95 @@ fail:
 	return NULL;
 }
 
+/*porting,WIFI Module,hanshirong 66539,20101108 begin++ */
+static int
+wmic_ether_aton(const char *orig, unsigned char *eth)
+{
+	const char *bufp;
+	int i;
+
+	i = 0;
+	for(bufp = orig; *bufp != '\0'; ++bufp) {
+		unsigned int val;
+		unsigned char c;
+
+		c = *bufp++;
+
+		if (c >= '0' && c <= '9') val = c - '0';
+		else if (c >= 'a' && c <= 'f') val = c - 'a' + 10;
+		else if (c >= 'A' && c <= 'F') val = c - 'A' + 10;
+		else {
+			printk("%s: MAC value is invalid\n", __FUNCTION__);
+			break;
+		}
+
+		val <<= 4;
+		c = *bufp++;
+		if (c >= '0' && c <= '9') val |= c - '0';
+		else if (c >= 'a' && c <= 'f') val |= c - 'a' + 10;
+		else if (c >= 'A' && c <= 'F') val |= c - 'A' + 10;
+		else {
+			printk("%s: MAC value is invalid\n", __FUNCTION__);
+			break;
+		}
+
+		eth[i] = (unsigned char) (val & 0377);
+		if(++i == ETHER_ADDR_LEN) {
+			/* That's it.  Any trailing junk? */
+			c = *bufp;
+			if ((c != '\0') && (c != 0x20) && (c != 0x0a) && (c != 0x0d)) {
+				printk("wmic_ether_aton end char is not correct [%c:0x%x]\n", c, c);
+				return 0;
+			}
+			return 1;
+		}
+		c = *bufp;
+		if (c != ':') {
+			printk("wmic_ether_aton: c[%c:0x%x] is not :\n", c,c);
+			break;
+		}
+	}
+	return 0;
+}
+
+
+void dhd_write_mac_address( dhd_info_t * dhd) 
+{
+
+	unsigned char mac_p[ETHER_ADDR_LEN];
+	struct ether_addr *mac_addr = NULL;
+
+	mac_addr = (struct ether_addr *)mac_p;
+
+	if (strlen(mac_param))
+	{
+		/* convert mac address */
+		DHD_TRACE(("%s: mac_param is %s\n", __FUNCTION__, mac_param));
+
+		if (!wmic_ether_aton(mac_param, (unsigned char *)mac_p)) {
+			DHD_ERROR(("%s: convert mac value fail\n", __FUNCTION__));
+			return ;
+		}
+
+		/* the converted mac address */
+		DHD_TRACE(("%s: converted mac value is %02x:%02x:%02x:%02x:%02x:%02x\n",
+			  __FUNCTION__,
+			  mac_p[0], mac_p[1], mac_p[2],
+			  mac_p[3], mac_p[4], mac_p[5] ));
+
+		/* Update MAC address into RAM */
+		//_dhd_set_mac_address(dhd, ifidx, mac_addr);
+		memcpy(dhd->pub.mac.octet, mac_addr, ETHER_ADDR_LEN);
+	}
+	else 
+	{
+		DHD_TRACE(("Warning %s: mac_param is NULL \n", __FUNCTION__));
+	}
+	
+	
+}
+
+/*porting,WIFI Module,hanshirong 66539,20101108 end-- */
 
 int
 dhd_bus_start(dhd_pub_t *dhdp)
@@ -2319,6 +2419,10 @@ dhd_bus_start(dhd_pub_t *dhdp)
 	dhdp->pktfilter[2] = NULL;
 	dhdp->pktfilter[3] = NULL;
 #endif /* EMBEDDED_PLATFORM */
+
+	/*porting,WIFI Module,hanshirong 66539,20101108 begin++ */
+	dhd_write_mac_address(dhd);
+	/*porting,WIFI Module,hanshirong 66539,20101108 end-- */
 
 	/* Bus is ready, do any protocol initialization */
 	if ((ret = dhd_prot_init(&dhd->pub)) < 0)
@@ -2628,6 +2732,9 @@ dhd_module_cleanup(void)
 	wifi_del_dev();
 #endif
 	/* Call customer gpio to turn off power with WL_REG_ON signal */
+#ifdef CUSTOMER_HW
+	msm8x60_wlan_set_carddetect(0);
+#endif
 	dhd_customer_gpio_wlan_ctrl(WLAN_POWER_OFF);
 }
 
@@ -2654,6 +2761,9 @@ dhd_module_init(void)
 
 	/* Call customer gpio to turn on power with WL_REG_ON signal */
 	dhd_customer_gpio_wlan_ctrl(WLAN_POWER_ON);
+#ifdef CUSTOMER_HW
+    msm8x60_wlan_set_carddetect(1);
+#endif
 
 #if defined(CUSTOMER_HW2) && defined(CONFIG_WIFI_CONTROL_FUNC)
 	sema_init(&wifi_control_sem, 0);
@@ -2708,6 +2818,9 @@ fail_0:
 #endif /* defined(CUSTOMER_HW2) && defined(CONFIG_WIFI_CONTROL_FUNC) */
 
 	/* Call customer gpio to turn off power with WL_REG_ON signal */
+#ifdef CUSTOMER_HW
+	 msm8x60_wlan_set_carddetect(0);
+#endif
 	dhd_customer_gpio_wlan_ctrl(WLAN_POWER_OFF);
 
 	return error;

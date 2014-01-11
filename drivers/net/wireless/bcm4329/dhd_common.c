@@ -48,9 +48,13 @@
 int wifi_get_mac_addr(unsigned char *buf);
 #endif /* GET_CUSTOM_MAC_ENABLE */
 
+char devmode[MOD_PARAM_PATHLEN] = {0};
+module_param_string(devmode, devmode, MOD_PARAM_PATHLEN, 0);
+
 int dhd_msg_level;
 
 #include <wl_iw.h>
+
 
 char fw_path[MOD_PARAM_PATHLEN];
 char nv_path[MOD_PARAM_PATHLEN];
@@ -135,6 +139,7 @@ const bcm_iovar_t dhd_iovars[] = {
 	{NULL, 0, 0, 0, 0 }
 };
 
+#define HUAWEI_WIFI_LOAD_PATH "/system/etc/wifi/"
 void
 dhd_common_init(void)
 {
@@ -144,17 +149,22 @@ dhd_common_init(void)
 	 * behaviour since the value of the globals may be different on the
 	 * first time that the driver is initialized vs subsequent initializations.
 	 */
-	dhd_msg_level = DHD_ERROR_VAL;
-#ifdef CONFIG_BCM4329_FW_PATH
-	strncpy(fw_path, CONFIG_BCM4329_FW_PATH, MOD_PARAM_PATHLEN-1);
-#else
-	fw_path[0] = '\0';
-#endif
-#ifdef CONFIG_BCM4329_NVRAM_PATH
-	strncpy(nv_path, CONFIG_BCM4329_NVRAM_PATH, MOD_PARAM_PATHLEN-1);
-#else
-	nv_path[0] = '\0';
-#endif
+    if(strcmp(devmode,"ap") == 0)
+    {
+        strcpy(fw_path,  HUAWEI_WIFI_LOAD_PATH "rtecdc-apsta-bcm4329.bin");
+    }
+    else if(strcmp(devmode,"test") == 0)
+    {
+	strcpy(fw_path,  HUAWEI_WIFI_LOAD_PATH "rtecdc-mfgtest-bcm4329.bin");
+     }
+    else
+    {   
+	strcpy(fw_path,  HUAWEI_WIFI_LOAD_PATH "rtecdc-bcm4329.bin");
+      }
+
+    DHD_ERROR(("%s:fw_path = %s \n", __FUNCTION__,fw_path));
+	strcpy(nv_path,  HUAWEI_WIFI_LOAD_PATH "nvram-bcm4329.txt");
+     		DHD_ERROR(("%s:nv_path = %s \n", __FUNCTION__,nv_path));
 }
 
 static int
@@ -1342,6 +1352,44 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 			memcpy(dhd->mac.octet, (void *)&ea_addr, ETHER_ADDR_LEN);
 	}
 #endif /* GET_CUSTOM_MAC_ENABLE */
+
+/*porting,WIFI Module,hanshirong 66539,20101108 begin++ */
+	/* Get the device MAC address */
+	//int ret = 0;
+        memset(buf,0,sizeof(buf));
+        strcpy(iovbuf, "cur_etheraddr");
+	if ((ret = dhdcdc_query_ioctl(dhd, 0, WLC_GET_VAR, iovbuf, sizeof(iovbuf))) < 0) {
+		DHD_ERROR(("%s: can't get MAC address , error=%d\n", __FUNCTION__, ret));
+		/*return BCME_NOTUP;*/
+	}
+
+	if ( dhd->mac.octet[0] || dhd->mac.octet[1] || dhd->mac.octet[2] ||
+	     dhd->mac.octet[3] || dhd->mac.octet[4] || dhd->mac.octet[5] ) {
+		if (memcmp(dhd->mac.octet, iovbuf, ETHER_ADDR_LEN) != 0) {
+			/* Set the device MAC address */
+			bcm_mkiovar("cur_etheraddr", (char *)dhd->mac.octet, ETHER_ADDR_LEN, iovbuf, sizeof(iovbuf));
+			if ((ret = dhdcdc_set_ioctl(dhd, 0, WLC_SET_VAR, iovbuf, sizeof(iovbuf))) < 0) {
+				DHD_ERROR(("%s: can't set MAC address , error=%d\n", __FUNCTION__, ret));
+				/*return BCME_NOTUP;*/
+			}
+			DHD_ERROR(("%s: use MAC address in ram %02x:%02x:%02x:%02x:%02x:%02x\n",
+				  __FUNCTION__,
+				  dhd->mac.octet[0], dhd->mac.octet[1], dhd->mac.octet[2],
+				  dhd->mac.octet[3], dhd->mac.octet[4], dhd->mac.octet[5] ));
+		} else {
+			DHD_ERROR(("%s: same MAC address in ram and nvram %02x:%02x:%02x:%02x:%02x:%02x\n",
+				  __FUNCTION__,
+				  dhd->mac.octet[0], dhd->mac.octet[1], dhd->mac.octet[2],
+				  dhd->mac.octet[3], dhd->mac.octet[4], dhd->mac.octet[5] ));
+		}
+	} else {
+		memcpy(dhd->mac.octet, iovbuf, ETHER_ADDR_LEN);
+		DHD_ERROR(("%s: use MAC address in nvram %02x:%02x:%02x:%02x:%02x:%02x\n",
+			  __FUNCTION__,
+			  dhd->mac.octet[0], dhd->mac.octet[1], dhd->mac.octet[2],
+			  dhd->mac.octet[3], dhd->mac.octet[4], dhd->mac.octet[5] ));
+	}
+	/*porting,WIFI Module,hanshirong 66539,20101108 end-- */
 
 #ifdef SET_RANDOM_MAC_SOFTAP
 	if (strstr(fw_path, "apsta") != NULL) {
