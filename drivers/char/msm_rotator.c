@@ -846,13 +846,16 @@ static int get_img(struct msmfb_data *fbd, unsigned char src,
 	}
 #endif
 
-
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+	return msm_rotator_iommu_map_buf(fbd->memory_id, src, start,
+		len, p_ihdl);
+#endif
+#ifdef CONFIG_ANDROID_PMEM
 	if (!get_pmem_file(fbd->memory_id, start, &vstart, len, p_file))
 		return 0;
 	else
-		return msm_rotator_iommu_map_buf(fbd->memory_id, src, start,
-		len, p_ihdl);
-
+		return -ENOMEM;
+#endif
 
 }
 

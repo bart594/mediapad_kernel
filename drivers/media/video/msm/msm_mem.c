@@ -128,10 +128,10 @@ static int msm_pmem_table_add(struct hlist_head *ptype,
 {
 	unsigned long paddr;
 	unsigned int flags;
-//#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
+#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
 	unsigned long kvstart;
 	struct file *file;
-//#endif
+#endif
 	int rc = -ENOMEM;
 
 	unsigned long len;
@@ -140,12 +140,12 @@ static int msm_pmem_table_add(struct hlist_head *ptype,
 	region = kmalloc(sizeof(struct msm_pmem_region), GFP_KERNEL);
 	if (!region)
 		goto out;
-//#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-//	region->handle = ion_import_fd(client, info->fd);
-//	if (IS_ERR_OR_NULL(region->handle))
-//		goto out1;
-//	ion_phys(client, region->handle, &paddr, (size_t *)&len);
-#ifdef CONFIG_ANDROID_PMEM
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+	region->handle = ion_import_fd(client, info->fd);
+	if (IS_ERR_OR_NULL(region->handle))
+		goto out1;
+	ion_phys(client, region->handle, &paddr, (size_t *)&len);
+#elif CONFIG_ANDROID_PMEM
 	rc = get_pmem_file(info->fd, &paddr, &kvstart, &len, &file);
 	if (rc < 0) {
 		pr_err("%s: get_pmem_file fd %d error %d\n",
@@ -196,9 +196,9 @@ static int msm_pmem_table_add(struct hlist_head *ptype,
 
 	return 0;
 out2:
-//#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-//	ion_free(client, region->handle);
-#ifdef CONFIG_ANDROID_PMEM
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+	ion_free(client, region->handle);
+#elif CONFIG_ANDROID_PMEM
 	put_pmem_file(region->file);
 #endif
 out1:
@@ -261,8 +261,8 @@ static int __msm_pmem_table_del(struct hlist_head *ptype,
 					"%s: unmapped stat memory\n",
 				__func__);
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-//				ion_free(client, region->handle);
-//#else
+				ion_free(client, region->handle);
+#else
 				put_pmem_file(region->file);
 #endif
 				kfree(region);

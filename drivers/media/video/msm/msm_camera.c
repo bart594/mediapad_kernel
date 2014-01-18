@@ -297,10 +297,10 @@ static int msm_pmem_table_add(struct hlist_head *ptype,
 	struct msm_sync *sync)
 {
 	unsigned long paddr;
-//#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
+#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
 	struct file *file;
 	unsigned long kvstart;
-//#endif
+#endif
 	unsigned long len;
 	int rc = -ENOMEM;
 	struct msm_pmem_region *region;
@@ -310,12 +310,12 @@ static int msm_pmem_table_add(struct hlist_head *ptype,
 	if (!region)
 		goto out;
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-//		region->handle = ion_import_fd(client_for_ion, info->fd);
-//		if (IS_ERR_OR_NULL(region->handle))
-//			goto out1;
-//		ion_phys(client_for_ion, region->handle,
-//			&paddr, (size_t *)&len);
-//#else
+		region->handle = ion_import_fd(client_for_ion, info->fd);
+		if (IS_ERR_OR_NULL(region->handle))
+			goto out1;
+		ion_phys(client_for_ion, region->handle,
+			&paddr, (size_t *)&len);
+#else
 	rc = get_pmem_file(info->fd, &paddr, &kvstart, &len, &file);
 	if (rc < 0) {
 		pr_err("%s: get_pmem_file fd %d error %d\n",
@@ -357,8 +357,8 @@ static int msm_pmem_table_add(struct hlist_head *ptype,
 	return 0;
 out2:
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-//	ion_free(client_for_ion, region->handle);
-//#else
+	ion_free(client_for_ion, region->handle);
+#else
 	put_pmem_file(region->file);
 #endif
 out1:
@@ -636,8 +636,8 @@ static int __msm_pmem_table_del(struct msm_sync *sync,
 					pinfo->fd == region->info.fd) {
 				hlist_del(node);
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-//				ion_free(client_for_ion, region->handle);
-//#else
+				ion_free(client_for_ion, region->handle);
+#else
 				put_pmem_file(region->file);
 #endif
 				kfree(region);
@@ -660,8 +660,8 @@ static int __msm_pmem_table_del(struct msm_sync *sync,
 				pinfo->fd == region->info.fd) {
 				hlist_del(node);
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-//				ion_free(client_for_ion, region->handle);
-//#else
+				ion_free(client_for_ion, region->handle);
+#else
 				put_pmem_file(region->file);
 #endif
 				kfree(region);
@@ -683,8 +683,8 @@ static int __msm_pmem_table_del(struct msm_sync *sync,
 					pinfo->fd == region->info.fd) {
 				hlist_del(node);
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-//				ion_free(client_for_ion, region->handle);
-//#else
+				ion_free(client_for_ion, region->handle);
+#else
 				put_pmem_file(region->file);
 #endif
 				kfree(region);
@@ -3045,8 +3045,8 @@ static int __msm_release(struct msm_sync *sync)
 				&sync->pmem_frames, list) {
 			hlist_del(hnode);
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-//				ion_free(client_for_ion, region->handle);
-//#else
+				ion_free(client_for_ion, region->handle);
+#else
 			put_pmem_file(region->file);
 #endif
 			kfree(region);
@@ -3056,8 +3056,8 @@ static int __msm_release(struct msm_sync *sync)
 				&sync->pmem_stats, list) {
 			hlist_del(hnode);
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-//				ion_free(client_for_ion, region->handle);
-//#else
+				ion_free(client_for_ion, region->handle);
+#else
 			put_pmem_file(region->file);
 #endif
 			kfree(region);

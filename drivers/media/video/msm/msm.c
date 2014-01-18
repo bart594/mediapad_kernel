@@ -1447,7 +1447,7 @@ static int msm_open(struct file *f)
 			return rc;
 		}
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-//		pcam->mctl.client = msm_ion_client_create(-1, "camera");
+		pcam->mctl.client = msm_ion_client_create(-1, "camera");
 #endif
 		/* Should be set to sensor ops if any but right now its OK!! */
 		if (!pcam->mctl.mctl_open) {
@@ -1619,7 +1619,7 @@ static int msm_close(struct file *f)
 				pr_err("mctl_release fails %d\n", rc);
 		}
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-//		ion_client_destroy(pcam->mctl.client);
+		ion_client_destroy(pcam->mctl.client);
 #endif
 	}
 	mutex_unlock(&pcam->vid_lock);
