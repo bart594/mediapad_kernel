@@ -2749,7 +2749,7 @@ static int mdp4_overlay_req2pipe(struct mdp_overlay *req, int mixer,
 }
 
 static int mdp4_calc_req_mdp_clk(struct msm_fb_data_type *mfd,
-				 u32 src_h, u32 dst_h, u32 src_w, u32 dst_w)
+				 u32 src_h, u32 dst_h, u32 src_w, u32 dst_w, u32 op_mode)
 {
 	u32 pclk, hsync;
 	u32 xscale, yscale;
@@ -2828,6 +2828,8 @@ static int mdp4_calc_req_mdp_clk(struct msm_fb_data_type *mfd,
 
 	xscale -= dst_w;
 	xscale <<= shift;
+        if (op_mode & MDP4_OP_FLIP_LR)
+            xscale *= 2;
 	xscale /= hsync;
 	pr_debug("%s: the right %d shifted xscale is %d.\n",
 		 __func__, shift, xscale);
@@ -2840,6 +2842,8 @@ static int mdp4_calc_req_mdp_clk(struct msm_fb_data_type *mfd,
         yscale <<= shift;
         yscale /= dst_h;
 	yscale *= src_w;
+        if (op_mode & MDP4_OP_FLIP_UD)
+            yscale *= 2
 	yscale /= hsync;
 
 	pr_debug("%s: the right %d shifted yscale is %d.\n",
@@ -2917,7 +2921,7 @@ static int mdp4_calc_pipe_mdp_clk(struct msm_fb_data_type *mfd,
 		 __func__, pipe->dst_w, pipe->dst_h, pipe->dst_x, pipe->dst_y);
 
 	pipe->req_clk = mdp4_calc_req_mdp_clk
-		(mfd, pipe->src_h, pipe->dst_h, pipe->src_w, pipe->dst_w);
+		(mfd, pipe->src_h, pipe->dst_h, pipe->src_w, pipe->dst_w, pipe->op_mode);
 
 	pr_debug("%s: required mdp clk %d mixer %d pipe ndx %d\n",
 		 __func__, pipe->req_clk, pipe->mixer_num, pipe->pipe_ndx);
