@@ -2843,7 +2843,7 @@ static int mdp4_calc_req_mdp_clk(struct msm_fb_data_type *mfd,
         yscale /= dst_h;
 	yscale *= src_w;
         if (op_mode & MDP4_OP_FLIP_UD)
-            yscale *= 2
+            yscale *= 2;
 	yscale /= hsync;
 
 	pr_debug("%s: the right %d shifted yscale is %d.\n",
