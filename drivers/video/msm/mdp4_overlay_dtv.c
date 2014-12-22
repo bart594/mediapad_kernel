@@ -948,7 +948,7 @@ int mdp4_overlay_dtv_set(struct msm_fb_data_type *mfd,
 	if (vctrl->base_pipe == NULL)
 		return -ENODEV;
 
-	//mdp4_init_writeback_buf(mfd, MDP4_MIXER1);
+	mdp4_init_writeback_buf(mfd, MDP4_MIXER1);
 	vctrl->base_pipe->ov_blt_addr = 0;
 	vctrl->base_pipe->dma_blt_addr = 0;
 
