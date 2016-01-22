@@ -593,7 +593,7 @@ int mdp4_lcdc_on(struct platform_device *pdev)
 		if (ret < 0)
 			printk(KERN_INFO "%s: format2pipe failed\n", __func__);
 
-		mdp4_init_writeback_buf(mfd, MDP4_MIXER0);
+		//mdp4_init_writeback_buf(mfd, MDP4_MIXER0);
 		pipe->ov_blt_addr = 0;
 		pipe->dma_blt_addr = 0;
 

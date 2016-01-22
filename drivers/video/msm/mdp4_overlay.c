@@ -3347,7 +3347,7 @@ void mdp4_overlay_mdp_perf_upd(struct msm_fb_data_type *mfd,
 		}
 		if (mfd->panel_info.pdest == DISPLAY_2 &&
 		    perf_req->use_ov_blt[1] && !perf_cur->use_ov_blt[1]) {
-			mdp4_dtv_overlay_blt_start(mfd);
+			//mdp4_dtv_overlay_blt_start(mfd);
 			pr_info("%s mixer1 start blt [%d] from %d to %d.\n",
 				__func__,
 				flag,
@@ -3407,7 +3407,7 @@ void mdp4_overlay_mdp_perf_upd(struct msm_fb_data_type *mfd,
 		}
 		if (mfd->panel_info.pdest == DISPLAY_2 &&
 		    !perf_req->use_ov_blt[1] && perf_cur->use_ov_blt[1]) {
-			mdp4_dtv_overlay_blt_stop(mfd);
+			//mdp4_dtv_overlay_blt_stop(mfd);
 			pr_info("%s mixer1 stop blt [%d] from %d to %d.\n",
 				__func__,
 				flag,
