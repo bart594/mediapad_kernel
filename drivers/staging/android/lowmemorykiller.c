@@ -41,6 +41,8 @@
 #include <linux/compaction.h>
 #include <linux/mutex.h>
 #include <linux/delay.h>
+#include <linux/swap.h>
+#include <linux/fs.h>
 
 static uint32_t lowmem_debug_level = 1;
 static int lowmem_adj[6] = {
@@ -61,7 +63,9 @@ static int lmk_fast_run = 1;
 
 static unsigned long lowmem_deathpending_timeout;
 
-extern int compact_nodes(bool);
+#ifdef LMK_CALL_COMPACTION
+extern int compact_nodes(bool sync);
+#endif
 
 #define lowmem_print(level, x...)			\
 	do {						\
@@ -185,8 +189,14 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	}
 
 	other_free = global_page_state(NR_FREE_PAGES);
-	other_file = global_page_state(NR_FILE_PAGES) -
-						global_page_state(NR_SHMEM);
+
+	if (global_page_state(NR_SHMEM) + total_swapcache_pages <
+		global_page_state(NR_FILE_PAGES))
+		other_file = global_page_state(NR_FILE_PAGES) -
+						global_page_state(NR_SHMEM) -
+						total_swapcache_pages;
+	else
+		other_file = 0;
 
 	tune_lmk_param(&other_free, &other_file, sc);
 
@@ -279,8 +289,10 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		     nr_to_scan, sc->gfp_mask, rem);
 	rcu_read_unlock();
 	mutex_unlock(&scan_mutex);
+#ifdef LMK_CALL_COMPACTION
 	if (selected)
 		compact_nodes(false);
+#endif
 	return rem;
 }
 
@@ -382,7 +394,7 @@ module_param_named(cost, lowmem_shrinker.seeks, int, S_IRUGO | S_IWUSR);
 __module_param_call(MODULE_PARAM_PREFIX, adj,
 		    &lowmem_adj_array_ops,
 		    .arr = &__param_arr_adj,
-		    S_IRUGO | S_IWUSR, 0);
+		    -1, S_IRUGO | S_IWUSR);
 __MODULE_PARM_TYPE(adj, "array of int");
 #else
 module_param_array_named(adj, lowmem_adj, int, &lowmem_adj_size,
