@@ -208,6 +208,9 @@ int mdp4_lcdc_pipe_commit(int cndx, int wait, u32 *release_busy)
 	}
 	mutex_unlock(&vctrl->update_lock);
 
+	/* free previous committed iommu back to pool */
+	mdp4_overlay_iommu_unmap_freelist(mixer);
+
 	spin_lock_irqsave(&vctrl->spin_lock, flags);
 	if (vctrl->ov_koff != vctrl->ov_done) {
 		spin_unlock_irqrestore(&vctrl->spin_lock, flags);
@@ -239,17 +242,13 @@ int mdp4_lcdc_pipe_commit(int cndx, int wait, u32 *release_busy)
 			if (real_pipe && real_pipe->pipe_used) {
 				/* pipe not unset */
 				mdp4_overlay_vsync_commit(pipe);
-				if (pipe->frame_format !=
-						MDP4_FRAME_FORMAT_LINEAR) {
-					spin_lock_irqsave(&vctrl->spin_lock,
-									flags);
-					INIT_COMPLETION(vctrl->dmap_comp);
-					vsync_irq_enable(INTR_DMA_P_DONE,
-								MDP_DMAP_TERM);
-					   spin_unlock_irqrestore(&vctrl->spin_lock,
-								flags);
-				}
 			}
+			/* free previous iommu to freelist
+			 * which will be freed at next
+			 * pipe_commit
+			 */
+			mdp4_overlay_iommu_pipe_free(pipe->pipe_ndx, 0);
+			pipe->pipe_used = 0; /* clear */
 		}
 	}
 
@@ -257,33 +256,6 @@ int mdp4_lcdc_pipe_commit(int cndx, int wait, u32 *release_busy)
 
 	/* start timing generator & mmu if they are not started yet */
 	mdp4_overlay_lcdc_start();
-
-	/*
-	 * there has possibility that pipe commit come very close to next vsync
-	 * this may cause two consecutive pie_commits happen within same vsync
-	 * period which casue iommu page fault when previous iommu buffer
-	 * freed. Set ION_IOMMU_UNMAP_DELAYED flag at ion_map_iommu() to
-	 * add delay unmap iommu buffer to fix this problem.
-	 * Also ion_unmap_iommu() may take as long as 9 ms to free an ion buffer.
-	 * therefore mdp4_overlay_iommu_unmap_freelist(mixer) should be called
-	 * ater stage_commit() to ensure pipe_commit (up to stage_commit)
-	 * is completed within vsync period.
-	 */
-
-	/* free previous committed iommu back to pool */
-	mdp4_overlay_iommu_unmap_freelist(mixer);
-
-	pipe = vp->plist;
-	for (i = 0; i < OVERLAY_PIPE_MAX; i++, pipe++) {
-		if (pipe->pipe_used) {
-			/* free previous iommu to freelist
-			* which will be freed at next
-			* pipe_commit
-			*/
-			mdp4_overlay_iommu_pipe_free(pipe->pipe_ndx, 0);
-			pipe->pipe_used = 0; /* clear */
-		}
-	}
 
 	pipe = vctrl->base_pipe;
 	spin_lock_irqsave(&vctrl->spin_lock, flags);
@@ -368,6 +340,7 @@ void mdp4_lcdc_wait4vsync(int cndx)
 {
 	struct vsycn_ctrl *vctrl;
 	struct mdp4_overlay_pipe *pipe;
+	ktime_t timestamp;
 
 	if (cndx >= MAX_CONTROLLER) {
 		pr_err("%s: out or range: cndx=%d\n", __func__, cndx);
@@ -382,7 +355,8 @@ void mdp4_lcdc_wait4vsync(int cndx)
 
 	mdp4_lcdc_vsync_irq_ctrl(cndx, 1);
 
-	wait_event_interruptible_timeout(vctrl->wait_queue, 1,
+	wait_event_interruptible_timeout(vctrl->wait_queue,
+			!ktime_equal(timestamp, vctrl->vsync_time),
 			msecs_to_jiffies(VSYNC_PERIOD * 8));
 
 	mdp4_lcdc_vsync_irq_ctrl(cndx, 0);
@@ -403,8 +377,7 @@ static void mdp4_lcdc_wait4dmap(int cndx)
 	if (atomic_read(&vctrl->suspend) > 0)
 		return;
 
-	if (!wait_for_completion_timeout(&vctrl->dmap_comp, msecs_to_jiffies(100)))
-		pr_err("%s %d  TIMEOUT_\n", __func__, __LINE__);
+	wait_for_completion(&vctrl->dmap_comp);
 }
 
 static void mdp4_lcdc_wait4ov(int cndx)
@@ -421,8 +394,7 @@ static void mdp4_lcdc_wait4ov(int cndx)
 	if (atomic_read(&vctrl->suspend) > 0)
 		return;
 
-	if (!wait_for_completion_timeout(&vctrl->ov_comp, msecs_to_jiffies(100)))
-		pr_err("%s %d  TIMEOUT_\n", __func__, __LINE__);
+	wait_for_completion(&vctrl->ov_comp);
 }
 
 ssize_t mdp4_lcdc_show_event(struct device *dev,
@@ -492,7 +464,7 @@ void mdp4_lcdc_free_base_pipe(struct msm_fb_data_type *mfd)
 	/* base pipe may change after borderfill_stage_down */
 	pipe = vctrl->base_pipe;
 	mdp4_mixer_stage_down(pipe, 1);
-	mdp4_overlay_pipe_free(pipe, 1);
+	mdp4_overlay_pipe_free(pipe);
 	vctrl->base_pipe = NULL;
 }
 
@@ -602,6 +574,7 @@ int mdp4_lcdc_on(struct platform_device *pdev)
 		pipe = vctrl->base_pipe;
 	}
 
+
 	pipe->src_height = fbi->var.yres;
 	pipe->src_width = fbi->var.xres;
 	pipe->src_h = fbi->var.yres;
@@ -610,18 +583,18 @@ int mdp4_lcdc_on(struct platform_device *pdev)
 	pipe->src_x = 0;
 	pipe->dst_h = fbi->var.yres;
 	pipe->dst_w = fbi->var.xres;
-        pipe->dst_y = 0;
-        pipe->dst_x = 0;
+	pipe->dst_y = 0;
+	pipe->dst_x = 0;
 
-      if (mfd->display_iova)
-          pipe->srcp0_addr = mfd->display_iova + buf_offset;
-      else
-          pipe->srcp0_addr = (uint32)(buf + buf_offset);
+	if (mfd->display_iova)
+		pipe->srcp0_addr = mfd->display_iova + buf_offset;
+	else
+		pipe->srcp0_addr = (uint32)(buf + buf_offset);
 
 	pipe->srcp0_ystride = fbi->fix.line_length;
 	pipe->bpp = bpp;
 
-	mdp4_overlay_solidfill_init(pipe);
+	//mdp4_overlay_solidfill_init(pipe);
 
 	mdp4_overlay_mdp_pipe_req(pipe, mfd);
 	mdp4_calc_blt_mdp_bw(mfd, pipe);
@@ -650,12 +623,6 @@ int mdp4_lcdc_on(struct platform_device *pdev)
 	lcdc_border_clr = mfd->panel_info.lcdc.border_clr;
 	lcdc_underflow_clr = mfd->panel_info.lcdc.underflow_clr;
 	lcdc_hsync_skew = mfd->panel_info.lcdc.hsync_skew;
-
-	pr_info("%s: <ID=%d %dx%d (%d,%d,%d), (%d,%d,%d) %dMHz>\n", __func__,
-		var->reserved[3], var->xres, var->yres,
-		var->right_margin, var->hsync_len, var->left_margin,
-		var->lower_margin, var->vsync_len, var->upper_margin,
-		var->pixclock/1000/1000);
 
 	lcdc_width = var->xres + mfd->panel_info.lcdc.xres_pad;
 	lcdc_height = var->yres + mfd->panel_info.lcdc.yres_pad;
@@ -697,8 +664,13 @@ int mdp4_lcdc_on(struct platform_device *pdev)
 
 
 #ifdef CONFIG_FB_MSM_MDP40
-	hsync_polarity = 1;
-	vsync_polarity = 1;
+	if (mfd->panel_info.lcdc.is_sync_active_high) {
+		hsync_polarity = 0;
+		vsync_polarity = 0;
+	} else {
+		hsync_polarity = 1;
+		vsync_polarity = 1;
+	}
 	lcdc_underflow_clr |= 0x80000000;	/* enable recovery */
 #else
 	hsync_polarity = 0;
@@ -801,7 +773,7 @@ int mdp4_lcdc_off(struct platform_device *pdev)
 			/* base pipe may change after borderfill_stage_down */
 			pipe = vctrl->base_pipe;
 			mdp4_mixer_stage_down(pipe, 1);
-			mdp4_overlay_pipe_free(pipe, 1);
+			mdp4_overlay_pipe_free(pipe);
 			vctrl->base_pipe = NULL;
 		} else {
 			/* system suspending */
@@ -814,14 +786,6 @@ int mdp4_lcdc_off(struct platform_device *pdev)
 	mdp4_lcdc_tg_off(vctrl);
 
 	atomic_set(&vctrl->suspend, 1);
-
-	/*
-	 * clean up ion freelist
-	 * there need two stage to empty ion free list
-	 * therefore need call unmap freelist twice
-	 */
-	mdp4_overlay_iommu_unmap_freelist(mixer);
-	mdp4_overlay_iommu_unmap_freelist(mixer);
 
 	/* MDP clock disable */
 	mdp_clk_ctrl(0);
@@ -846,9 +810,8 @@ static void mdp4_lcdc_blt_ov_update(struct mdp4_overlay_pipe *pipe)
 #else
 	bpp = 3; /* overlay ouput is RGB888 */
 #endif
-	off = 0;
-	if (pipe->ov_cnt & 0x01)
-		off = pipe->src_height * pipe->src_width * bpp;
+	off = (pipe->ov_cnt % 3) *
+			pipe->src_height * pipe->src_width * bpp;
 	addr = pipe->ov_blt_addr + off;
 
 	/* overlay 0 */
@@ -870,9 +833,8 @@ static void mdp4_lcdc_blt_dmap_update(struct mdp4_overlay_pipe *pipe)
 #else
 	bpp = 3; /* overlay ouput is RGB888 */
 #endif
-	off = 0;
-	if (pipe->dmap_cnt & 0x01)
-		off = pipe->src_height * pipe->src_width * bpp;
+	off = (pipe->dmap_cnt % 3) *
+			pipe->src_height * pipe->src_width * bpp;
 	addr = pipe->dma_blt_addr + off;
 
 	/* dmap */
@@ -914,12 +876,6 @@ void mdp4_dmap_done_lcdc(int cndx)
 
 	spin_lock(&vctrl->spin_lock);
 	vsync_irq_disable(INTR_DMA_P_DONE, MDP_DMAP_TERM);
-
-	if (pipe == NULL) {
-		spin_unlock(&vctrl->spin_lock);
-		return;
-	}
-
 	if (vctrl->blt_change) {
 		mdp4_overlayproc_cfg(pipe);
 		mdp4_overlay_dmap_xy(pipe);
@@ -960,12 +916,6 @@ void mdp4_overlay0_done_lcdc(int cndx)
 	vsync_irq_disable(INTR_OVERLAY0_DONE, MDP_OVERLAY0_TERM);
 	vctrl->ov_done++;
 	complete_all(&vctrl->ov_comp);
-
-	if (pipe == NULL) {
-		spin_unlock(&vctrl->spin_lock);
-		return;
-	}
-
 	if (pipe->ov_blt_addr == 0) {
 		spin_unlock(&vctrl->spin_lock);
 		return;
@@ -1065,10 +1015,10 @@ void mdp4_lcdc_overlay(struct msm_fb_data_type *mfd)
 		buf = (uint8 *) fbi->fix.smem_start;
 		buf_offset = calc_fb_offset(mfd, fbi, bpp);
 
-             if (mfd->display_iova)
-                 pipe->srcp0_addr = mfd->display_iova + buf_offset;
-             else
-                 pipe->srcp0_addr = (uint32)(buf + buf_offset);
+		if (mfd->display_iova)
+			pipe->srcp0_addr = mfd->display_iova + buf_offset;
+		else
+			pipe->srcp0_addr = (uint32)(buf + buf_offset);
 
 		mdp4_lcdc_pipe_queue(0, pipe);
 	}

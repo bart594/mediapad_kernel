@@ -445,6 +445,9 @@ void mdp4_hw_init(void)
 
 	/* max read pending cmd config */
 	outpdw(MDP_BASE + 0x004c, 0x02222);	/* 3 pending requests */
+        outpdw(MDP_BASE + 0x0400, 0x7FF);
+	outpdw(MDP_BASE + 0x0404, 0xF0);
+	outpdw(MDP_BASE + 0x0408, 0x00);
 
 #ifndef CONFIG_FB_MSM_OVERLAY
 	/* both REFRESH_MODE and DIRECT_OUT are ignored at BLT mode */
@@ -560,9 +563,9 @@ irqreturn_t mdp4_isr(int irq, void *ptr)
 			mdp4_dmap_done_dsi_video(0);
 		else if (panel & MDP4_PANEL_DSI_CMD)
 			mdp4_dmap_done_dsi_cmd(0);
-#elseif CONFIG_FB_MSM_MDDI
+#else
 		else { /* MDDI */
-			mdp4_dmap_done_mddi(0);
+			mdp4_dma_p_done_mddi(dma);
 			mdp_pipe_ctrl(MDP_DMA2_BLOCK,
 				MDP_BLOCK_POWER_OFF, TRUE);
 			complete(&dma->comp);
@@ -613,7 +616,7 @@ irqreturn_t mdp4_isr(int irq, void *ptr)
 				mdp4_overlay0_done_dsi_cmd(0);
 #else
 			if (panel & MDP4_PANEL_MDDI)
-				mdp4_overlay0_done_mddi(0);
+				mdp4_overlay0_done_mddi(dma);
 #endif
 		}
 		mdp_hw_cursor_done();
@@ -2293,7 +2296,7 @@ void mdp4_init_writeback_buf(struct msm_fb_data_type *mfd, u32 mix_num)
 u32 mdp4_allocate_writeback_buf(struct msm_fb_data_type *mfd, u32 mix_num)
 {
 	struct mdp_buf_type *buf;
-	ion_phys_addr_t	addr;
+	ion_phys_addr_t	addr, read_addr = 0;
 	size_t buffer_size;
 	unsigned long len;
 
@@ -2311,7 +2314,7 @@ u32 mdp4_allocate_writeback_buf(struct msm_fb_data_type *mfd, u32 mix_num)
 	}
 
 	buffer_size = roundup(mfd->panel_info.xres * \
-		mfd->panel_info.yres * 3 * 2, SZ_4K);
+		mfd->panel_info.yres * 3 * 3, SZ_4K);
 
 	if (!IS_ERR_OR_NULL(mfd->iclient)) {
 		pr_info("%s:%d ion based allocation mfd->mem_hid 0x%x\n",
@@ -2320,6 +2323,12 @@ u32 mdp4_allocate_writeback_buf(struct msm_fb_data_type *mfd, u32 mix_num)
 			mfd->mem_hid);
 		if (!IS_ERR_OR_NULL(buf->ihdl)) {
 			if (mdp_iommu_split_domain) {
+				if (ion_map_iommu(mfd->iclient, buf->ihdl,
+					DISPLAY_READ_DOMAIN, GEN_POOL, SZ_4K,
+					0, &read_addr, &len, 0, 0)) {
+					pr_err("ion_map_iommu() read failed\n");
+					return -ENOMEM;
+				}
 				if (mfd->mem_hid & ION_SECURE) {
 					if (ion_phys(mfd->iclient, buf->ihdl,
 						&addr, (size_t *)&len)) {
@@ -2340,7 +2349,7 @@ u32 mdp4_allocate_writeback_buf(struct msm_fb_data_type *mfd, u32 mix_num)
 				if (ion_map_iommu(mfd->iclient, buf->ihdl,
 					DISPLAY_READ_DOMAIN, GEN_POOL, SZ_4K,
 					0, &addr, &len, 0, 0)) {
-					pr_err("ion_map_iommu() failed\n");
+					pr_err("ion_map_iommu() write failed\n");
 					return -ENOMEM;
 				}
 			}
@@ -2357,7 +2366,12 @@ u32 mdp4_allocate_writeback_buf(struct msm_fb_data_type *mfd, u32 mix_num)
 		pr_info("allocating %d bytes at %x for mdp writeback\n",
 			buffer_size, (u32) addr);
 		buf->write_addr = addr;
-		buf->read_addr = buf->write_addr;
+
+		if (read_addr)
+			buf->read_addr = read_addr;
+		else
+			buf->read_addr = buf->write_addr;
+
 		return 0;
 	} else {
 		pr_err("%s cannot allocate memory for mdp writeback!\n",
@@ -2381,6 +2395,8 @@ void mdp4_free_writeback_buf(struct msm_fb_data_type *mfd, u32 mix_num)
 				if (!(mfd->mem_hid & ION_SECURE))
 					ion_unmap_iommu(mfd->iclient, buf->ihdl,
 						DISPLAY_WRITE_DOMAIN, GEN_POOL);
+				ion_unmap_iommu(mfd->iclient, buf->ihdl,
+					DISPLAY_READ_DOMAIN, GEN_POOL);
 			} else {
 				ion_unmap_iommu(mfd->iclient, buf->ihdl,
 					DISPLAY_READ_DOMAIN, GEN_POOL);
@@ -2393,7 +2409,7 @@ void mdp4_free_writeback_buf(struct msm_fb_data_type *mfd, u32 mix_num)
 	} else {
 		if (buf->write_addr) {
 			free_contiguous_memory_by_paddr(buf->write_addr);
-			pr_info("%s:%d free writeback pmem\n", __func__,
+			pr_debug("%s:%d free writeback pmem\n", __func__,
 				__LINE__);
 		}
 	}
@@ -2683,6 +2699,7 @@ static int update_ar_gc_lut(uint32_t *offset, struct mdp_pgc_lut_data *lut_data)
 	uint32_t *c2_params_offset = (uint32_t *)((uint32_t)c2_offset
 						+MDP_GC_PARMS_OFFSET);
 
+
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
 	for (count = 0; count < MDP_AR_GC_MAX_STAGES; count++) {
 		if (count < lut_data->num_g_stages) {
@@ -2737,19 +2754,42 @@ static int mdp4_argc_process_write_req(uint32_t *offset,
 	struct mdp_ar_gc_lut_data r[MDP_AR_GC_MAX_STAGES];
 	struct mdp_ar_gc_lut_data g[MDP_AR_GC_MAX_STAGES];
 	struct mdp_ar_gc_lut_data b[MDP_AR_GC_MAX_STAGES];
+	uint8_t num_r_stages;
+	uint8_t num_g_stages;
+	uint8_t num_b_stages;
+
+	if (get_user(num_r_stages, &pgc_ptr->num_r_stages)) {
+		pr_err("%s failed: num_r_stages : Invalid arg\n", __func__);
+		return -EFAULT;
+	}
+
+	if (get_user(num_g_stages, &pgc_ptr->num_g_stages)) {
+		pr_err("%s failed: num_g_stages : Invalid arg\n", __func__);
+		return -EFAULT;
+	}
+
+	if (get_user(num_b_stages, &pgc_ptr->num_b_stages)) {
+		pr_err("%s failed: num_b_stages : Invalid arg\n", __func__);
+		return -EFAULT;
+	}
+
+	if ((!num_r_stages || num_r_stages > MDP_AR_GC_MAX_STAGES) ||
+		(!num_g_stages || num_g_stages > MDP_AR_GC_MAX_STAGES) ||
+		(!num_b_stages || num_b_stages > MDP_AR_GC_MAX_STAGES))
+		return -EINVAL;
 
 	ret = copy_from_user(&r[0], pgc_ptr->r_data,
-		pgc_ptr->num_r_stages * sizeof(struct mdp_ar_gc_lut_data));
+		num_r_stages * sizeof(struct mdp_ar_gc_lut_data));
 
 	if (!ret) {
 		ret = copy_from_user(&g[0],
 				pgc_ptr->g_data,
-				pgc_ptr->num_g_stages
+				num_g_stages
 				* sizeof(struct mdp_ar_gc_lut_data));
 		if (!ret)
 			ret = copy_from_user(&b[0],
 					pgc_ptr->b_data,
-					pgc_ptr->num_b_stages
+					num_b_stages
 					* sizeof(struct mdp_ar_gc_lut_data));
 	}
 
@@ -3091,4 +3131,103 @@ u32 mdp4_get_mixer_num(u32 panel_type)
 		mixer_num = MDP4_MIXER0;
 	}
 	return mixer_num;
+}
+
+static int is_valid_calib_addr(void *addr)
+{
+	int ret = 0;
+	unsigned int ptr;
+
+	ptr = (unsigned int) addr;
+
+	if (mdp_rev >= MDP_REV_30 && mdp_rev < MDP_REV_40) {
+		/* if request is outside the MDP reg-map or is not aligned 4 */
+		if (ptr == 0x0 || ptr > 0xF0600 || ptr % 0x4)
+			goto end;
+
+		if (ptr >= 0x90000 && ptr < 0x94000) {
+			if (ptr == 0x90000 || ptr == 0x90070)
+				ret = 1;
+			else if (ptr >= 0x93400 && ptr <= 0x93420)
+				ret = 1;
+			else if (ptr >= 0x93500 && ptr <= 0x93508)
+				ret = 1;
+			else if (ptr >= 0x93580 && ptr <= 0x93588)
+				ret = 1;
+			else if (ptr >= 0x93600 && ptr <= 0x93614)
+				ret = 1;
+			else if (ptr >= 0x93680 && ptr <= 0x93694)
+				ret = 1;
+			else if (ptr >= 0x93800 && ptr <= 0x93BFC)
+				ret = 1;
+		}
+	} else if (mdp_rev >= MDP_REV_40 && mdp_rev <= MDP_REV_44) {
+		/* if request is outside the MDP reg-map or is not aligned 4 */
+		if (ptr > 0xF0600 || ptr % 0x4)
+			goto end;
+
+		if (ptr < 0x90000) {
+			if (ptr == 0x0 || ptr == 0x4 || ptr == 0x28200 ||
+								ptr == 0x28204)
+				ret = 1;
+		} else if (ptr < 0x95000) {
+			if (ptr == 0x90000 || ptr == 0x90070)
+				ret = 1;
+			else if (ptr >= 0x93400 && ptr <= 0x93420)
+				ret = 1;
+			else if (ptr >= 0x93500 && ptr <= 0x93508)
+				ret = 1;
+			else if (ptr >= 0x93580 && ptr <= 0x93588)
+				ret = 1;
+			else if (ptr >= 0x93600 && ptr <= 0x93614)
+				ret = 1;
+			else if (ptr >= 0x93680 && ptr <= 0x93694)
+				ret = 1;
+			else if (ptr >= 0x94800 && ptr <= 0x94BFC)
+				ret = 1;
+		} else if (ptr < 0x9A000) {
+			if (ptr >= 0x98800 && ptr <= 0x9883C)
+				ret = 1;
+			else if (ptr >= 0x98880 && ptr <= 0x988AC)
+				ret = 1;
+			else if (ptr >= 0x98900 && ptr <= 0x9893C)
+				ret = 1;
+			else if (ptr >= 0x98980 && ptr <= 0x989BC)
+				ret = 1;
+			else if (ptr >= 0x98A00 && ptr <= 0x98A3C)
+				ret = 1;
+			else if (ptr >= 0x98A80 && ptr <= 0x98ABC)
+				ret = 1;
+			else if (ptr >= 0x99000 && ptr <= 0x993FC)
+				ret = 1;
+			else if (ptr >= 0x99800 && ptr <= 0x99BFC)
+				ret = 1;
+		} else if (ptr >= 0x9A000 && ptr <= 0x9a08c) {
+			ret = 1;
+		}
+	}
+end:
+	return ret;
+}
+
+int mdp4_calib_config(struct mdp_calib_config_data *cfg)
+{
+	int ret = -1;
+	void *ptr = (void *) cfg->addr;
+
+	if (is_valid_calib_addr(ptr))
+		ret = 0;
+	else
+		return ret;
+
+	ptr = (void *)(((unsigned int) ptr) + MDP_BASE);
+	mdp_clk_ctrl(1);
+	if (cfg->ops & MDP_PP_OPS_READ) {
+		cfg->data = inpdw(ptr);
+		ret = 1;
+	} else if (cfg->ops & MDP_PP_OPS_WRITE) {
+		outpdw(ptr, cfg->data);
+	}
+	mdp_clk_ctrl(0);
+	return ret;
 }

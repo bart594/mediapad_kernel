@@ -33,6 +33,8 @@ uint32 hdmi_inp(uint32 offset);
 #define HDMI_INP(offset)		inpdw(MSM_HDMI_BASE+(offset))
 #endif
 
+#define HDMI_REAUTH_MAX 3
+
 #define HDMI_DELAY_MAX 3
 
 /*
@@ -62,11 +64,13 @@ struct hdmi_msm_state_type {
 	struct work_struct hpd_state_work;
 	struct completion ddc_sw_done;
 
-        struct timer_list hpd_delay_timer;
-        boolean hpd_delay_count;
-        bool hdcp_enable;
+	struct timer_list hpd_delay_timer;
+	boolean hpd_delay_count;
+
+	bool hdcp_enable;
 	boolean hdcp_activating;
 	boolean reauth ;
+	boolean reauth_count;
 	struct work_struct hdcp_reauth_work, hdcp_work;
 	struct completion hdcp_success_done;
 	struct timer_list hdcp_timer;
@@ -122,7 +126,7 @@ void hdmi_phy_reset(void);
 void hdmi_msm_reset_core(void);
 void hdmi_msm_init_phy(int video_format);
 void hdmi_msm_powerdown_phy(void);
-void hdmi_frame_ctrl_cfg(const struct msm_hdmi_mode_timing_info *timing);
+void hdmi_frame_ctrl_cfg(const struct hdmi_disp_mode_timing_type *timing);
 void hdmi_msm_phy_status_poll(void);
 #endif
 

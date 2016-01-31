@@ -97,12 +97,12 @@ int mdp4_atv_on(struct platform_device *pdev)
 	pipe->src_w = fbi->var.xres;
 	pipe->src_y = 0;
 	pipe->src_x = 0;
-        pipe->dst_h = fbi->var.yres;
-        pipe->dst_w = fbi->var.xres;
-        pipe->dst_y = 0;
-        pipe->dst_x = 0;
+	pipe->dst_h = fbi->var.yres;
+	pipe->dst_w = fbi->var.xres;
+	pipe->dst_y = 0;
+	pipe->dst_x = 0;
 
-        if (mfd->map_buffer) {
+	if (mfd->map_buffer) {
 		pipe->srcp0_addr = (unsigned int)mfd->map_buffer->iova[0] + \
 			buf_offset;
 		pr_debug("start 0x%lx srcp0_addr 0x%x\n", mfd->
@@ -115,7 +115,12 @@ int mdp4_atv_on(struct platform_device *pdev)
 
 	mdp4_overlay_dmae_xy(pipe);	/* dma_e */
 	mdp4_overlay_dmae_cfg(mfd, 1);
-	mdp4_overlay_rgb_setup(pipe);
+
+	if (pipe->pipe_type == OVERLAY_TYPE_RGB)
+		mdp4_overlay_rgb_setup(pipe);
+	else
+	    mdp4_overlay_vg_setup(pipe);
+
 
 	mdp4_overlayproc_cfg(pipe);
 

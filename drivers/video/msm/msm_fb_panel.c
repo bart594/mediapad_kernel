@@ -78,6 +78,31 @@ int panel_next_off(struct platform_device *pdev)
 	return ret;
 }
 
+int panel_next_fps_level_change(struct platform_device *pdev,
+					 u32 fps_level)
+{
+	int ret = 0;
+	struct msm_fb_panel_data *pdata;
+	struct msm_fb_panel_data *next_pdata;
+	struct platform_device *next_pdev;
+
+	pdata = (struct msm_fb_panel_data *)pdev->dev.platform_data;
+
+	if (pdata) {
+		next_pdev = pdata->next;
+		if (next_pdev) {
+			next_pdata =
+			    (struct msm_fb_panel_data *)next_pdev->dev.
+			    platform_data;
+			if ((next_pdata) && (next_pdata->fps_level_change))
+				ret = next_pdata->fps_level_change(next_pdev,
+							 fps_level);
+		}
+	}
+
+	return ret;
+}
+
 int panel_next_late_init(struct platform_device *pdev)
 {
 	int ret = 0;

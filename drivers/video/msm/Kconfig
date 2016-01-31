@@ -114,12 +114,12 @@ config FB_MSM_OVERLAY
 config FB_MSM_MDP41_BLT_MODE
         depends on FB_MSM_OVERLAY
         bool "MDP41 overlay force blt mode"
-        default n
+        default y
 
 config FB_MSM_MDP41_VIRTUAL_BF_PIPE
         depends on FB_MSM_OVERLAY
         bool "MDP41 overlay use virtual borderfill pipe"
-        default n
+        default y
 
 config FB_MSM_DTV
 	depends on FB_MSM_OVERLAY
