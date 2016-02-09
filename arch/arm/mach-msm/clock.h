@@ -102,6 +102,9 @@ struct clk {
 
 	struct list_head children;
 	struct list_head siblings;
+#ifdef CONFIG_CLOCK_MAP
+	unsigned id;
+#endif
 
 	unsigned count;
 	spinlock_t lock;
@@ -148,7 +151,7 @@ int clock_debug_init(struct clock_init_data *data);
 int clock_debug_add(struct clk *clock);
 void clock_debug_print_enabled(void);
 #else
-static inline int clock_debug_init(struct clk_init_data *data) { return 0; }
+static inline int clock_debug_init(struct clock_init_data *data) { return 0; }
 static inline int clock_debug_add(struct clk *clock) { return 0; }
 static inline void clock_debug_print_enabled(void) { return; }
 #endif
