@@ -2788,7 +2788,7 @@ unsigned char hdmi_is_primary;
 #define USER_SMI_SIZE         (MSM_SMI_SIZE - KERNEL_SMI_SIZE)
 #define MSM_PMEM_SMIPOOL_SIZE USER_SMI_SIZE
 
-#define MSM_ION_SF_SIZE		0x5000000 /* 80MB */
+#define MSM_ION_SF_SIZE		0x7000000 /* 112MB */
 #define MSM_ION_CAMERA_SIZE     MSM_PMEM_ADSP_SIZE   /* 18MB -> 16MB */
 #define MSM_ION_MM_FW_SIZE	0x200000 /* (2MB) */
 #define MSM_ION_MM_SIZE		0x3D00000 /* 54MB -> 61MB */
@@ -8539,8 +8539,8 @@ static struct msm_panel_common_pdata mdp_pdata = {
 	.gpio = MDP_VSYNC_GPIO,
 	.mdp_max_clk = 266667000,
         .mdp_max_bw = 2000000000,
-        .mdp_bw_ab_factor = 200,
-        .mdp_bw_ib_factor = 210,
+        .mdp_bw_ab_factor = 115,
+        .mdp_bw_ib_factor = 150,
 #ifdef CONFIG_MSM_BUS_SCALING
 	.mdp_bus_scale_table = &mdp_bus_scale_pdata,
 #endif
