@@ -386,7 +386,7 @@ static void vid_dec_output_frame_done(struct video_client_ctx *client_ctx,
 		ion_flag = vidc_get_fd_info(client_ctx, BUFFER_TYPE_OUTPUT,
 				pmem_fd, kernel_vaddr, buffer_index,
 				&buff_handle);
-		if (ion_flag == CACHED && buff_handle) {
+		if (ion_flag == ION_FLAG_CACHED && buff_handle) {
 			DBG("%s: Cache invalidate: size %u", __func__,
 				vcd_frame_data->alloc_len);
 			msm_ion_do_cache_op(client_ctx->user_ion_client,
@@ -1004,7 +1004,7 @@ static u32 vid_dec_set_meta_buffers(struct video_client_ctx *client_ctx,
 		vcd_meta_buffer->dev_addr_iommu =
 					(u8 *)mapped_buffer_iommu->iova[0];
 	} else {
-		client_ctx->meta_buffer_ion_handle = ion_import_fd(
+		client_ctx->meta_buffer_ion_handle = ion_import_dma_buf(
 					client_ctx->user_ion_client,
 					vcd_meta_buffer->pmem_fd);
 		if (IS_ERR_OR_NULL(client_ctx->meta_buffer_ion_handle)) {
@@ -1022,7 +1022,7 @@ static u32 vid_dec_set_meta_buffers(struct video_client_ctx *client_ctx,
 		vcd_meta_buffer->kernel_virtual_addr =
 			(u8 *) ion_map_kernel(
 			client_ctx->user_ion_client,
-			client_ctx->meta_buffer_ion_handle, ionflag);
+			client_ctx->meta_buffer_ion_handle);
 		if (!vcd_meta_buffer->kernel_virtual_addr) {
 			ERR("%s(): get_ION_kernel virtual addr failed\n",
 				 __func__);
@@ -1060,7 +1060,7 @@ static u32 vid_dec_set_meta_buffers(struct video_client_ctx *client_ctx,
 			vcd_meta_buffer->dev_addr = (u8 *) iova;
 		}
 
-		client_ctx->meta_buffer_iommu_ion_handle = ion_import_fd(
+		client_ctx->meta_buffer_iommu_ion_handle = ion_import_dma_buf(
 					client_ctx->user_ion_client,
 					vcd_meta_buffer->pmem_fd_iommu);
 		if (IS_ERR_OR_NULL(client_ctx->meta_buffer_iommu_ion_handle)) {
@@ -1079,7 +1079,7 @@ static u32 vid_dec_set_meta_buffers(struct video_client_ctx *client_ctx,
 		vcd_meta_buffer->kernel_virt_addr_iommu =
 			(u8 *) ion_map_kernel(
 			client_ctx->user_ion_client,
-			client_ctx->meta_buffer_iommu_ion_handle, ionflag);
+			client_ctx->meta_buffer_iommu_ion_handle);
 		if (!vcd_meta_buffer->kernel_virt_addr_iommu) {
 			ERR("%s(): get_ION_kernel virtual addr failed\n",
 				 __func__);
@@ -1237,7 +1237,7 @@ static u32 vid_dec_set_h264_mv_buffers(struct video_client_ctx *client_ctx,
 		vcd_h264_mv_buffer->client_data = (void *) mapped_buffer;
 		vcd_h264_mv_buffer->dev_addr = (u8 *)mapped_buffer->iova[0];
 	} else {
-		client_ctx->h264_mv_ion_handle = ion_import_fd(
+		client_ctx->h264_mv_ion_handle = ion_import_dma_buf(
 					client_ctx->user_ion_client,
 					vcd_h264_mv_buffer->pmem_fd);
 		if (IS_ERR_OR_NULL(client_ctx->h264_mv_ion_handle)) {
@@ -1254,8 +1254,7 @@ static u32 vid_dec_set_h264_mv_buffers(struct video_client_ctx *client_ctx,
 		}
 		vcd_h264_mv_buffer->kernel_virtual_addr = (u8 *) ion_map_kernel(
 			client_ctx->user_ion_client,
-			client_ctx->h264_mv_ion_handle,
-			ionflag);
+			client_ctx->h264_mv_ion_handle);
 		if (!vcd_h264_mv_buffer->kernel_virtual_addr) {
 			ERR("%s(): get_ION_kernel virtual addr failed\n",
 				 __func__);
@@ -1281,7 +1280,7 @@ static u32 vid_dec_set_h264_mv_buffers(struct video_client_ctx *client_ctx,
 					VIDEO_DOMAIN, VIDEO_MAIN_POOL,
 					SZ_4K, 0, (unsigned long *)&iova,
 					(unsigned long *)&buffer_size,
-					UNCACHED, 0);
+					0, 0);
 			if (rc || !iova) {
 				ERR(
 				"%s():get_ION_kernel physical addr fail, rc = %d iova = 0x%lx\n",
@@ -1720,7 +1719,7 @@ static u32 vid_dec_decode_frame(struct video_client_ctx *client_ctx,
 						kernel_vaddr,
 						buffer_index,
 						&buff_handle);
-			if (ion_flag == CACHED && buff_handle) {
+			if (ion_flag == ION_FLAG_CACHED && buff_handle) {
 				msm_ion_do_cache_op(client_ctx->user_ion_client,
 				buff_handle,
 				(unsigned long *) NULL,
@@ -2169,6 +2168,7 @@ static long vid_dec_ioctl(struct file *file,
 	}
 	case VDEC_IOCTL_SET_PERF_CLK:
 	{
+		DBG("VDEC_IOCTL_SET_PERF_CLK\n");
 		vid_dec_set_turbo_clk(client_ctx);
 		break;
 	}
@@ -2258,7 +2258,7 @@ static long vid_dec_ioctl(struct file *file,
 			}
 			put_pmem_file(pmem_file);
 		} else {
-			client_ctx->seq_hdr_ion_handle = ion_import_fd(
+			client_ctx->seq_hdr_ion_handle = ion_import_dma_buf(
 				client_ctx->user_ion_client,
 				seq_header.pmem_fd);
 			if (IS_ERR_OR_NULL(client_ctx->seq_hdr_ion_handle)) {
@@ -2277,7 +2277,7 @@ static long vid_dec_ioctl(struct file *file,
 			}
 			ker_vaddr = (unsigned long) ion_map_kernel(
 				client_ctx->user_ion_client,
-				client_ctx->seq_hdr_ion_handle, ionflag);
+				client_ctx->seq_hdr_ion_handle);
 			if (IS_ERR_OR_NULL((void *)ker_vaddr)) {
 				ERR("%s():get_ION_kernel virtual addr fail\n",
 							 __func__);

@@ -1,3 +1,1 @@
-ccflags-y := -Ofast -ffast-math -fgcse-lm -fgcse-sm -fsched-spec-load -fforce-addr -fsingle-precision-constant -mtune=cortex-a9 -marm -march=armv7-a -mfpu=neon -ftree-vectorize
-
-obj-y += msm_ion.o
+obj-y += msm_ion.o ion_cp_common.o

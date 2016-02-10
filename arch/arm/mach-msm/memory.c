@@ -36,6 +36,8 @@
 #include <linux/android_pmem.h>
 #include <mach/msm_iomap.h>
 #include <mach/socinfo.h>
+#include <linux/sched.h>
+#include <asm/tlbflush.h>
 #include <../../mm/mm.h>
 #include <linux/fmem.h>
 
@@ -108,7 +110,7 @@ void invalidate_caches(unsigned long vstart,
 	outer_inv_range(pstart, pstart + length);
 }
 
-void *alloc_bootmem_aligned(unsigned long size, unsigned long alignment)
+void * __init alloc_bootmem_aligned(unsigned long size, unsigned long alignment)
 {
 	void *unused_addr = NULL;
 	unsigned long addr, tmp_size, unused_size;
@@ -257,18 +259,6 @@ static void __init reserve_memory_for_mempools(void)
 	for (memtype = 0; memtype < MEMTYPE_MAX; memtype++, mt++) {
 		if (mt->flags & MEMTYPE_FLAGS_FIXED || !mt->size)
 			continue;
-
-		/* We know we will find memory bank(s) of the proper size
-		 * as we have limited the size of the memory pool for
-		 * each memory type to the largest total size of the memory
-		 * banks which are contiguous and of the correct memory type.
-		 * Choose the memory bank with the highest physical
-		 * address which is large enough, so that we will not
-		 * take memory from the lowest memory bank which the kernel
-		 * is in (and cause boot problems) and so that we might
-		 * be able to steal memory that would otherwise become
-		 * highmem. However, do not use unstable memory.
-		 */
 		for (i = meminfo.nr_banks - 1; i >= 0; i--) {
 			mb = &meminfo.bank[i];
 			membank_type =
@@ -279,10 +269,8 @@ static void __init reserve_memory_for_mempools(void)
 			if (size >= mt->size) {
 				size = stable_size(mb,
 					reserve_info->low_unstable_address);
-				/* mt->size may be larger than size, all this
-				 * means is that we are carving the memory pool
-				 * out of multiple contiguous memory banks.
-				 */
+				if (!size)
+				continue;
 				mt->start = mb->start + (size - mt->size);
 				ret = memblock_remove(mt->start, mt->size);
 				BUG_ON(ret);
@@ -292,26 +280,6 @@ static void __init reserve_memory_for_mempools(void)
 	}
 }
 
-unsigned long __init reserve_memory_for_fmem(unsigned long fmem_size,
-						unsigned long align)
-{
-	struct membank *mb;
-	int ret;
-	unsigned long fmem_phys;
-
-	if (!fmem_size)
-		return 0;
-
-	mb = &meminfo.bank[meminfo.nr_banks - 1];
-
-	fmem_phys = mb->start + (mb->size - fmem_size);
-	fmem_phys = ALIGN(fmem_phys-align+1, align);
-	ret = memblock_remove(fmem_phys, fmem_size);
-	BUG_ON(ret);
-
-	pr_info("fmem start %lx size %lx\n", fmem_phys, fmem_size);
-	return fmem_phys;
-}
 
 static void __init initialize_mempools(void)
 {
@@ -329,6 +297,7 @@ static void __init initialize_mempools(void)
 				memtype_name[memtype]);
 	}
 }
+
 
 void __init msm_reserve(void)
 {
@@ -429,6 +398,27 @@ void store_ttbr0(void)
 	/* Store TTBR0 for post-mortem debugging purposes. */
 	asm("mrc p15, 0, %0, c2, c0, 0\n"
 		: "=r" (msm_ttbr0));
+}
+
+static char * const memtype_names[] = {
+	 [MEMTYPE_SMI_KERNEL] = "SMI_KERNEL",
+	 [MEMTYPE_SMI] = "SMI",
+	 [MEMTYPE_EBI0] = "EBI0",
+	 [MEMTYPE_EBI1] = "EBI1",
+};
+
+int msm_get_memory_type_from_name(const char *memtype_name)
+{
+	 int i;
+
+	 for (i = 0; i < ARRAY_SIZE(memtype_names); i++) {
+	 if (memtype_names[i] &&
+	 strcmp(memtype_name, memtype_names[i]) == 0)
+	 return i;
+ }
+
+ pr_err("Could not find memory type %s\n", memtype_name);
+ return -EINVAL;
 }
 
 int request_fmem_c_region(void *unused)
