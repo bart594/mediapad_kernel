@@ -58,6 +58,8 @@ static void z180_dump_regs(struct kgsl_device *device)
 	unsigned int i;
 	unsigned int reg_val;
 
+	z180_idle(device);
+
 	KGSL_LOG_DUMP(device, "Z180 Register Dump\n");
 	for (i = 0; i < ARRAY_SIZE(regs_to_dump); i++) {
 		kgsl_regread(device,
@@ -118,7 +120,7 @@ static void z180_dump_ib(struct kgsl_device *device)
 	int rb_slot_num = -1;
 	struct z180_device *z180_dev = Z180_DEVICE(device);
 	struct kgsl_mem_entry *entry = NULL;
-	unsigned int pt_base;
+	phys_addr_t pt_base;
 	unsigned int i;
 	unsigned int j;
 	char linebuf[CHARS_PER_LINE];
@@ -209,7 +211,7 @@ int z180_dump(struct kgsl_device *device, int manual)
 
 	mb();
 
-	KGSL_LOG_DUMP(device, "Retired Timestamp: %d\n", z180_dev->timestamp);
+	KGSL_LOG_DUMP(device, "Retired Timestamp: %d\n", atomic_read(&z180_dev->timestamp));
 	KGSL_LOG_DUMP(device,
 			"Current Timestamp: %d\n", z180_dev->current_timestamp);
 

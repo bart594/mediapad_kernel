@@ -33,6 +33,7 @@ struct class;
 struct subsys_private;
 struct bus_type;
 struct device_node;
+struct iommu_ops;
 
 struct bus_attribute {
 	struct attribute	attr;
@@ -51,6 +52,8 @@ extern void bus_remove_file(struct bus_type *, struct bus_attribute *);
  * struct bus_type - The bus type of the device
  *
  * @name:	The name of the bus.
+ * @dev_name:	Used for subsystems to enumerate devices like ("foo%u", dev->id).
+ * @dev_root:	Default device to use as the parent.
  * @bus_attrs:	Default attributes of the bus.
  * @dev_attrs:	Default attributes of the devices on the bus.
  * @drv_attrs:	Default attributes of the device drivers on the bus.
@@ -67,6 +70,9 @@ extern void bus_remove_file(struct bus_type *, struct bus_attribute *);
  * @resume:	Called to bring a device on this bus out of sleep mode.
  * @pm:		Power management operations of this bus, callback the specific
  *		device driver's pm-ops.
+ * @iommu_ops:  IOMMU specific operations for this bus, used to attach IOMMU
+ *              driver implementations to a bus and allow the driver to do
+ *              bus-specific setup
  * @p:		The private data of the driver core, only the driver core can
  *		touch this.
  *
@@ -81,6 +87,8 @@ extern void bus_remove_file(struct bus_type *, struct bus_attribute *);
  */
 struct bus_type {
 	const char		*name;
+	const char		*dev_name;
+	struct device		*dev_root;
 	struct bus_attribute	*bus_attrs;
 	struct device_attribute	*dev_attrs;
 	struct driver_attribute	*drv_attrs;
@@ -95,6 +103,8 @@ struct bus_type {
 	int (*resume)(struct device *dev);
 
 	const struct dev_pm_ops *pm;
+
+	struct iommu_ops *iommu_ops;
 
 	struct subsys_private *p;
 };

@@ -1,0 +1,39 @@
+# IOMMU_API always gets selected by whoever wants it.
+config IOMMU_API
+	bool
+
+menuconfig IOMMU_SUPPORT
+	bool "IOMMU Hardware Support"
+	default y
+	---help---
+	  Say Y here if you want to compile device drivers for IO Memory
+	  Management Units into the kernel. These devices usually allow to
+	  remap DMA requests and/or remap interrupts from other devices on the
+	  system.
+
+if IOMMU_SUPPORT
+
+# MSM IOMMU support
+config MSM_IOMMU
+	bool "MSM IOMMU Support"
+	depends on ARCH_MSM8X60 || ARCH_MSM8960 || ARCH_APQ8064 || ARCH_MSM8974
+	select IOMMU_API
+	help
+	  Support for the IOMMUs found on certain Qualcomm SOCs.
+	  These IOMMUs allow virtualization of the address space used by most
+	  cores within the multimedia subsystem.
+
+	  If unsure, say N here.
+
+# MSM IOMMU CPU-GPU sync programming support
+config MSM_IOMMU_GPU_SYNC
+	bool "MSM IOMMU CPU-GPU Sync Support"
+	depends on (ARCH_MSM8X60 || ARCH_MSM8960 || ARCH_APQ8064 || ARCH_MSM8930) && MSM_IOMMU && MSM_REMOTE_SPINLOCK_SFPB
+	help
+	  Say Y here if you want to synchronize access to IOMMU configuration
+	  port between CPU and GPU. CPU will grab a remote spinlock before
+	  accessing IOMMU configuration registers and GPU will do the same.
+
+	  If unsure, say N here.
+
+endif # IOMMU_SUPPORT
