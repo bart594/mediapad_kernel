@@ -28,7 +28,7 @@
 
 #define Z180_DEFAULT_PWRSCALE_POLICY  NULL
 
-/* Wait a maximum of 10 seconds when trying to idle the core */
+/* Wait a maximum of 20 seconds when trying to idle the core */
 #define Z180_IDLE_TIMEOUT (20 * 1000)
 
 struct z180_ringbuffer {
@@ -39,12 +39,11 @@ struct z180_ringbuffer {
 struct z180_device {
 	struct kgsl_device dev;    /* Must be first field in this struct */
 	int current_timestamp;
-	atomic_t timestamp;
+	int timestamp;
 	struct z180_ringbuffer ringbuffer;
 	spinlock_t cmdwin_lock;
 };
 
 int z180_dump(struct kgsl_device *, int);
-int z180_idle(struct kgsl_device *);
 
 #endif /* __Z180_H */
