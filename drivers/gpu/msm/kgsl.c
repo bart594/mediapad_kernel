@@ -18,6 +18,7 @@
 #include <linux/uaccess.h>
 #include <linux/interrupt.h>
 #include <linux/workqueue.h>
+#include <linux/dma-buf.h>
 #include <linux/android_pmem.h>
 #include <linux/vmalloc.h>
 #include <linux/pm_runtime.h>
@@ -52,7 +53,11 @@ module_param_named(mmutype, ksgl_mmu_type, charp, 0);
 MODULE_PARM_DESC(ksgl_mmu_type,
 "Type of MMU to be used for graphics. Valid values are 'iommu' or 'gpummu' or 'nommu'");
 
-static struct ion_client *kgsl_ion_client;
+struct kgsl_dma_buf_meta {
+	struct dma_buf_attachment *attach;
+	struct dma_buf *dmabuf;
+	struct sg_table *table;
+};
 
 static void kgsl_mem_entry_detach_process(struct kgsl_mem_entry *entry);
 
@@ -297,6 +302,17 @@ kgsl_mem_entry_create(void)
 	return entry;
 }
 
+static void kgsl_destroy_ion(struct kgsl_dma_buf_meta *meta)
+{
+	if (meta != NULL) {
+		dma_buf_unmap_attachment(meta->attach, meta->table,
+			DMA_FROM_DEVICE);
+		dma_buf_detach(meta->dmabuf, meta->attach);
+		dma_buf_put(meta->dmabuf);
+		kfree(meta);
+	}
+}
+
 void
 kgsl_mem_entry_destroy(struct kref *kref)
 {
@@ -329,7 +345,7 @@ kgsl_mem_entry_destroy(struct kref *kref)
 			fput(entry->priv_data);
 		break;
 	case KGSL_MEM_ENTRY_ION:
-		ion_free(kgsl_ion_client, entry->priv_data);
+		kgsl_destroy_ion(entry->priv_data);
 		break;
 	}
 
@@ -2157,34 +2173,55 @@ static int kgsl_setup_ashmem(struct kgsl_mem_entry *entry,
 #endif
 
 static int kgsl_setup_ion(struct kgsl_mem_entry *entry,
-		struct kgsl_pagetable *pagetable, int fd)
+		struct kgsl_pagetable *pagetable, void *data,
+		struct kgsl_device *device)
 {
-	struct ion_handle *handle;
 	struct scatterlist *s;
 	struct sg_table *sg_table;
+	struct kgsl_map_user_mem *param = data;
+	int fd = param->fd;
+	struct dma_buf *dmabuf;
+	struct dma_buf_attachment *attach = NULL;
+	struct kgsl_dma_buf_meta *meta;
+	int ret = 0;
 
-
-
-	if (IS_ERR_OR_NULL(kgsl_ion_client))
-		return -ENODEV;
-	handle = ion_import_dma_buf(kgsl_ion_client, fd);
-	if (IS_ERR(handle))
-		return PTR_ERR(handle);
-	else if (!handle)
+	if (!param->len)
 		return -EINVAL;
 
+	meta = kzalloc(sizeof(*meta), GFP_KERNEL);
+	if (!meta)
+		return -ENOMEM;
+
+	dmabuf = dma_buf_get(fd);
+	if (IS_ERR_OR_NULL(dmabuf)) {
+		ret = PTR_ERR(dmabuf);
+		goto out;
+	}
+
+	attach = dma_buf_attach(dmabuf, device->dev);
+	if (IS_ERR_OR_NULL(attach)) {
+		ret = PTR_ERR(attach);
+		goto out;
+	}
+
+	meta->dmabuf = dmabuf;
+	meta->attach = attach;
+
 	entry->memtype = KGSL_MEM_ENTRY_ION;
-	entry->priv_data = handle;
 	entry->memdesc.pagetable = pagetable;
 	entry->memdesc.size = 0;
 	/* USE_CPU_MAP is not impemented for ION. */
 	entry->memdesc.flags &= ~KGSL_MEMFLAGS_USE_CPU_MAP;
 
-	sg_table = ion_sg_table(kgsl_ion_client, handle);
+	sg_table = dma_buf_map_attachment(attach, DMA_TO_DEVICE);
 
-	if (IS_ERR_OR_NULL(sg_table))
-		goto err;
+	if (IS_ERR_OR_NULL(sg_table)) {
+		ret = PTR_ERR(sg_table);
+		goto out;
+	}
 
+	meta->table = sg_table;
+	entry->priv_data = meta;
 	entry->memdesc.sg = sg_table->sgl;
 
 	/* Calculate the size of the memdesc from the sglist */
@@ -2196,10 +2233,20 @@ static int kgsl_setup_ion(struct kgsl_mem_entry *entry,
 		entry->memdesc.sglen++;
 	}
 
-	return 0;
-err:
-	ion_free(kgsl_ion_client, handle);
-	return -ENOMEM;
+	entry->memdesc.size = PAGE_ALIGN(entry->memdesc.size);
+
+out:
+	if (ret) {
+		if (!IS_ERR_OR_NULL(attach))
+			dma_buf_detach(dmabuf, attach);
+
+		if (!IS_ERR_OR_NULL(dmabuf))
+			dma_buf_put(dmabuf);
+
+		kfree(meta);
+	}
+
+	return ret;
 }
 
 static inline int
@@ -2294,8 +2341,8 @@ static long kgsl_ioctl_map_user_mem(struct kgsl_device_private *dev_priv,
 		entry->memtype = KGSL_MEM_ENTRY_ASHMEM;
 		break;
 	case KGSL_USER_MEM_TYPE_ION:
-		result = kgsl_setup_ion(entry, private->pagetable,
-			param->fd);
+		result = kgsl_setup_ion(entry, private->pagetable, data,
+					dev_priv->device);
 		break;
 	default:
 		KGSL_CORE_ERR("Invalid memory type: %x\n", memtype);
@@ -2337,7 +2384,7 @@ error_attach:
 			fput(entry->priv_data);
 		break;
 	case KGSL_MEM_ENTRY_ION:
-		ion_free(kgsl_ion_client, entry->priv_data);
+		kgsl_destroy_ion(entry->priv_data);
 		break;
 	default:
 		break;
@@ -3344,8 +3391,7 @@ int kgsl_device_platform_probe(struct kgsl_device *device)
 	if (status)
 		goto error;
 
-	kgsl_ion_client = msm_ion_client_create(UINT_MAX, KGSL_NAME);
-
+	
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 					   device->iomemname);
 	if (res == NULL) {
