@@ -37,10 +37,6 @@
 #include <linux/dma-mapping.h>
 #include <linux/i2c/bq27520.h>
 
-#ifdef CONFIG_ANDROID_PMEM
-#include <linux/android_pmem.h>
-#endif
-
 #if defined(CONFIG_SMB137B_CHARGER) || defined(CONFIG_SMB137B_CHARGER_MODULE)
 #include <linux/i2c/smb137b.h>
 #endif
@@ -96,7 +92,7 @@
 #include "acpuclock.h"
 #include "pm-boot.h"
 #include <linux/msm_tsens.h>
-
+#include <linux/android_pmem.h>
 #include <linux/msm_ion.h>
 #include <mach/ion.h>
 
@@ -2860,6 +2856,19 @@ static struct platform_device msm_fb_device = {
 	.dev.platform_data = &msm_fb_pdata,
 };
 
+#ifdef CONFIG_ANDROID_PMEM_ION_WRAPPER
+static struct android_pmem_platform_data android_pmem_audio_pdata = {
+	.name = "pmem_audio",
+	.ion_heap_id = ION_AUDIO_HEAP_ID,
+};
+
+static struct platform_device android_pmem_audio_device = {
+	.name = "android_pmem",
+	.id = 0,
+	.dev = { .platform_data = &android_pmem_audio_pdata },
+};
+#endif
+
 #define PMEM_BUS_WIDTH(_bw) \
 	{ \
 		.vectors = &(struct msm_bus_vectors){ \
@@ -4098,6 +4107,9 @@ static struct platform_device *rumi_sim_devices[] __initdata = {
 
 #ifdef CONFIG_I2C_SSBI
 	&msm_device_ssbi3,
+#endif
+#ifdef CONFIG_ANDROID_PMEM_ION_WRAPPER
+        &android_pmem_audio_device,
 #endif
 #ifdef CONFIG_MSM_ROTATOR
 	&msm_rotator_device,
