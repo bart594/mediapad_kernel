@@ -24,11 +24,6 @@
 #include <asm/system.h>
 
 
-struct lsm_ioctlop_audit {
-	struct path path;
-	u16 cmd;
-};
-
 /* Auxiliary data to use in generating the audit record. */
 struct common_audit_data {
 	char type;
@@ -42,7 +37,6 @@ struct common_audit_data {
 #define LSM_AUDIT_DATA_KMOD	8
 #define LSM_AUDIT_DATA_INODE	9
 #define LSM_AUDIT_DATA_DENTRY	10
-#define LSM_AUDIT_DATA_IOCTL_OP	11
 	struct task_struct *tsk;
 	union 	{
 		struct path path;
@@ -75,20 +69,65 @@ struct common_audit_data {
 		} key_struct;
 #endif
 		char *kmod_name;
-                struct lsm_ioctlop_audit *op;
 	} u;
 	/* this union contains LSM specific data */
 	union {
 #ifdef CONFIG_SECURITY_SMACK
-		struct smack_audit_data *smack_audit_data;
+		/* SMACK data */
+		struct smack_audit_data {
+			const char *function;
+			char *subject;
+			char *object;
+			char *request;
+			int result;
+		} smack_audit_data;
 #endif
 #ifdef CONFIG_SECURITY_SELINUX
-                struct selinux_audit_data *selinux_audit_data;
+		/* SELinux data */
+		struct {
+			u32 ssid;
+			u32 tsid;
+			u16 tclass;
+			u32 requested;
+			u32 audited;
+			u32 denied;
+			/*
+			 * auditdeny is a bit tricky and unintuitive.  See the
+			 * comments in avc.c for it's meaning and usage.
+			 */
+			u32 auditdeny;
+			struct av_decision *avd;
+			int result;
+		} selinux_audit_data;
 #endif
 #ifdef CONFIG_SECURITY_APPARMOR
-                struct apparmor_audit_data *apparmor_audit_data;
+		struct {
+			int error;
+			int op;
+			int type;
+			void *profile;
+			const char *name;
+			const char *info;
+			union {
+				void *target;
+				struct {
+					long pos;
+					void *target;
+				} iface;
+				struct {
+					int rlim;
+					unsigned long max;
+				} rlim;
+				struct {
+					const char *target;
+					u32 request;
+					u32 denied;
+					uid_t ouid;
+				} fs;
+			};
+		} apparmor_audit_data;
 #endif
-	};   /* per LSM data pointer union */
+	};
 	/* these callback will be implemented by a specific LSM */
 	void (*lsm_pre_audit)(struct audit_buffer *, void *);
 	void (*lsm_post_audit)(struct audit_buffer *, void *);
