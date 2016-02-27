@@ -1416,6 +1416,12 @@ config MSM_MPDEC
       This enables kernel based multi core control.
       (up/down hotplug based on load)
 
+config INTELLI_PLUG
+        bool "Enable intelli-plug cpu hotplug driver"
+        default n
+        help
+          Generic Intelli-plug cpu hotplug driver for ARM SOCs
+
 config CPU_VOLTAGE_TABLE
 	bool "Enable CPU Voltage Table via sysfs for adjustements"
 	default y
